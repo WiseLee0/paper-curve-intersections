@@ -7,12 +7,17 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "wasm": "wasm-pack build ./intersections-rust --out-dir pkg --target web",
+    "web": "cross-env RUSTFLAGS=\"-C target-feature=+atomics,+bulk-memory,+mutable-globals\" rustup run nightly-2022-12-12 wasm-pack build ./intersections-rust --target web --out-dir pkg -- --features parallel -Z build-std=panic_abort,std",
     "preview": "vite preview"
   },
   "dependencies": {
     "paper": "^0.12.17",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "vite-plugin-top-level-await": "^1.4.1",
+    "vite-plugin-wasm": "^3.3.0",
+    "vite-plugin-wasm-pack": "^0.1.12"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

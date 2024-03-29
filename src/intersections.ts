@@ -7,7 +7,7 @@ const EPSILON = 1e-12
 const MACHINE_EPSILON = 1.12e-16
 
 /// 分割贝塞尔曲线
-function splitCubicBezier(bez: number[], t: number) {
+export function splitCubicBezier(bez: number[], t: number) {
     const [p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y] = bez;
     const u = 1 - t;
     const p3x = u * p1x + t * c1x;
