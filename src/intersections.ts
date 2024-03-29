@@ -254,8 +254,9 @@ function cubicRoots(P: number[]): number[] {
     let t: number[] = [-1, -1, -1];
 
     if (D >= 0) {
-        const S = sgn(R + Math.sqrt(D)) * Math.abs(R + Math.sqrt(D)) ** (1 / 3);
-        const T = sgn(R - Math.sqrt(D)) * Math.abs(R - Math.sqrt(D)) ** (1 / 3);
+        let d_sqrt = Math.sqrt(D);
+        const S = sgn(R + d_sqrt) * Math.abs(R + d_sqrt) ** (1 / 3);
+        const T = sgn(R - d_sqrt) * Math.abs(R - d_sqrt) ** (1 / 3);
 
         t[0] = -A / 3 + (S + T); // real root
         t[1] = -A / 3 - (S + T) / 2; // real part of complex root
@@ -267,12 +268,12 @@ function cubicRoots(P: number[]): number[] {
             t[2] = -1;
         }
     } else {
-        // distinct real roots
+        const q_sqrt = Math.sqrt(-Q)
         const th = Math.acos(R / Math.sqrt(-(Q ** 3)));
 
-        t[0] = 2 * Math.sqrt(-Q) * Math.cos(th / 3) - A / 3;
-        t[1] = 2 * Math.sqrt(-Q) * Math.cos((th + 2 * Math.PI) / 3) - A / 3;
-        t[2] = 2 * Math.sqrt(-Q) * Math.cos((th + 4 * Math.PI) / 3) - A / 3;
+        t[0] = 2 * q_sqrt * Math.cos(th / 3) - A / 3;
+        t[1] = 2 * q_sqrt * Math.cos((th + 2 * Math.PI) / 3) - A / 3;
+        t[2] = 2 * q_sqrt * Math.cos((th + 4 * Math.PI) / 3) - A / 3;
     }
 
     for (let i = 0; i < 3; i++) {

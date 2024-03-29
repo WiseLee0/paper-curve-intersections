@@ -290,3 +290,77 @@ pub fn line_intersection(
     }
     None
 }
+
+fn bezier_coeffs(p0: f64, p1: f64, p2: f64, p3: f64) -> [f64; 4] {
+    [
+        -p0 + 3.0 * p1 - 3.0 * p2 + p3,
+        3.0 * p0 - 6.0 * p1 + 3.0 * p2,
+        -3.0 * p0 + 3.0 * p1,
+        p0,
+    ]
+}
+fn sgn(x: f64) -> f64 {
+    if x < 0.0 {
+        -1.0
+    } else {
+        1.0
+    }
+}
+fn sort_special(mut a: Vec<f64>) -> Vec<f64> {
+    let mut flipped = true;
+    while flipped {
+        flipped = false;
+        for i in 0..a.len() - 1 {
+            if (a[i + 1] >= 0.0 && a[i] > a[i + 1]) || (a[i] < 0.0 && a[i + 1] >= 0.0) {
+                a.swap(i, i + 1);
+                flipped = true;
+            }
+        }
+    }
+    a
+}
+fn cubic_roots(p: &[f64; 4]) -> Vec<f64> {
+    let a = p[1] / p[0];
+    let b = p[2] / p[0];
+    let c = p[3] / p[0];
+
+    let q = (3.0 * b - a * a) / 9.0;
+    let r = (9.0 * a * b - 27.0 * c - 2.0 * a * a * a) / 54.0;
+    let d = q * q * q + r * r;
+
+    let mut t = vec![-1.0; 3];
+
+    if d >= 0.0 {
+        let d_sqrt = d.sqrt();
+        let s = sgn(r + d_sqrt) * (r + d_sqrt).abs().powf(1.0 / 3.0);
+        let t_val = sgn(r - d_sqrt) * (r - d_sqrt).abs().powf(1.0 / 3.0);
+
+        t[0] = -a / 3.0 + (s + t_val); // real root
+        t[1] = -a / 3.0 - (s + t_val) / 2.0; // real part of complex root
+        t[2] = -a / 3.0 - (s + t_val) / 2.0; // real part of complex root
+        let im = (3.0_f64.sqrt() * (s - t_val)) / 2.0; // complex part of root pair
+
+        if im != 0.0 {
+            t[1] = -1.0;
+            t[2] = -1.0;
+        }
+    } else {
+        let q_sqrt = (-q).sqrt();
+        let q_t = (-(q.powi(3))).sqrt();
+        let th = (r / q_t).acos();
+
+        t[0] = 2.0 * q_sqrt * th.cos() / 3.0 - a / 3.0;
+        t[1] = 2.0 * q_sqrt * ((th + 2.0 * std::f64::consts::PI) / 3.0).cos() - a / 3.0;
+        t[2] = 2.0 * q_sqrt * ((th + 4.0 * std::f64::consts::PI) / 3.0).cos() - a / 3.0;
+    }
+
+    for i in 0..t.len() - 1 {
+        if t[i] < 0.0 || t[i] > 1.0 {
+            t[i] = -1.0;
+        }
+    }
+
+    sort_special(t)
+}
+
+
