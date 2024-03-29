@@ -29,7 +29,7 @@ export function splitCubicBezier(bez: number[], t: number) {
 }
 
 /// 切割部分曲线[t1,t2]
-function splitCubicBezierPart(v: number[], t1: number, t2: number) {
+export function splitCubicBezierPart(v: number[], t1: number, t2: number) {
     if (t1 > 0) {
         v = splitCubicBezier(v, t1)[1];
     }
@@ -135,7 +135,7 @@ const isZero = (val: number) => val >= -EPSILON && val <= EPSILON;
 /// type = 1时，计算曲线上的切线
 /// type = 2时，计算曲线上的法线
 /// type = 3时，计算曲线上的曲率
-function evaluate(v: number[], t: number, type: number, normalized = false) {
+export function evaluate(v: number[], t: number, type: number, normalized = false) {
     if (t == null || t < 0 || t > 1) return [];
     let [x0, y0, x1, y1, x2, y2, x3, y3] = v;
     if (isZero(x1 - x0) && isZero(y1 - y0)) {

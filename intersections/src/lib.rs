@@ -248,3 +248,45 @@ pub fn evaluate(v: &[f64], t: f64, type_: u8) -> Vec<f64> {
         _ => vec![x, y],
     }
 }
+
+fn is_machine_zero(val: f64) -> bool {
+    val >= -MACHINE_EPSILON && val <= MACHINE_EPSILON
+}
+
+/// 计算直线相交
+pub fn line_intersection(
+    p1x: f64,
+    p1y: f64,
+    mut v1x: f64,
+    mut v1y: f64,
+    p2x: f64,
+    p2y: f64,
+    mut v2x: f64,
+    mut v2y: f64,
+) -> Option<(f64, f64)> {
+    v1x -= p1x;
+    v1y -= p1y;
+    v2x -= p2x;
+    v2y -= p2y;
+    let cross = v1x * v2y - v1y * v2x;
+    if !is_machine_zero(cross) {
+        let dx = p1x - p2x;
+        let dy = p1y - p2y;
+        let u1 = (v2x * dy - v2y * dx) / cross;
+        let u2 = (v1x * dy - v1y * dx) / cross;
+        let epsilon = MACHINE_EPSILON;
+        let u_min = -epsilon;
+        let u_max = 1.0 + epsilon;
+        if u_min < u1 && u1 < u_max && u_min < u2 && u2 < u_max {
+            let t = if u1 <= 0.0 {
+                0.0
+            } else if u1 >= 1.0 {
+                1.0
+            } else {
+                u1
+            };
+            return Some((p1x + t * v1x, p1y + t * v1y));
+        }
+    }
+    None
+}
