@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "wasm": "wasm-pack build ./intersections-rust --out-dir pkg --target web",
-    "web": "cross-env RUSTFLAGS=\"-C target-feature=+atomics,+bulk-memory,+mutable-globals\" rustup run nightly-2022-12-12 wasm-pack build ./intersections-rust --target web --out-dir pkg -- --features parallel -Z build-std=panic_abort,std",
+    "wasm": "wasm-pack build ./intersections --out-dir pkg --target web --release",
+    "web": "cross-env RUSTFLAGS=\"-C target-feature=+atomics,+bulk-memory,+mutable-globals\" rustup run nightly-2022-12-12 wasm-pack build ./intersections --target web --out-dir pkg -- --features parallel -Z build-std=panic_abort,std",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -29,6 +29,6 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.6",
     "typescript": "^5.2.2",
-    "vite": "^5.2.0"
+    "vite": "^5.2.7"
   }
 }

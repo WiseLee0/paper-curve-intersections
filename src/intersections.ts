@@ -482,17 +482,17 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
 }
 
 export const getIntersections = (curves1: number[][], curves2: number[][] | undefined, locations: number[][]) => {
-    const self = !curves2;
-    if (self) {
+    const is_self = !curves2;
+    if (is_self) {
         curves2 = []
         for (let i = 0; i < curves1.length; i++) {
             curves2.push([...curves1[i]])
         }
     }
-    const boundsCollisions = CollisionDetection.findCurveBoundsCollisions(curves1, curves2, GEOMETRIC_EPSILON);
+    const boundsCollisions = CollisionDetection.findCurveBoundsCollisions(curves1, curves2, is_self, GEOMETRIC_EPSILON);
     for (let i = 0; i < curves1.length; i++) {
         const curve1 = curves1[i]
-        if (self) {
+        if (is_self) {
             const t = getSelfIntersection(curve1);
             if (t) {
                 let [t1, t2] = t
@@ -506,7 +506,7 @@ export const getIntersections = (curves1: number[][], curves2: number[][] | unde
         const collisions = boundsCollisions[i];
         for (let j = 0; j < collisions.length; j++) {
             const index = collisions[j];
-            if (!self || index > i) {
+            if (!is_self || index > i) {
                 getCurveIntersections(curve1, curves2![index], locations)
             }
         }
