@@ -1,5 +1,7 @@
 extern crate wasm_bindgen;
 use wasm_bindgen::prelude::*;
+mod collision_detection;
+use collision_detection::CollisionDetection;
 const GEOMETRIC_EPSILON: f64 = 1e-7;
 const CURVETIME_EPSILON: f64 = 1e-8;
 const FATLINE_EPSILON: f64 = 1e-9;
@@ -9,14 +11,7 @@ const MACHINE_EPSILON: f64 = 1.12e-16;
 /// 分割贝塞尔曲线
 pub fn split_cubic_bezier(bez: &[f64; 8], t: f64) -> ([f64; 8], [f64; 8]) {
     let (p1x, p1y, c1x, c1y, c2x, c2y, p2x, p2y) = (
-        bez[0],
-        bez[1],
-        bez[2],
-        bez[3],
-        bez[4],
-        bez[5],
-        bez[6],
-        bez[7],
+        bez[0], bez[1], bez[2], bez[3], bez[4], bez[5], bez[6], bez[7],
     );
 
     let u = 1.0 - t;
@@ -33,7 +28,10 @@ pub fn split_cubic_bezier(bez: &[f64; 8], t: f64) -> ([f64; 8], [f64; 8]) {
     let p8x = u * p6x + t * p7x;
     let p8y = u * p6y + t * p7y;
 
-    ([p1x, p1y, p3x, p3y, p6x, p6y, p8x, p8y], [p8x, p8y, p7x, p7y, p5x, p5y, p2x, p2y])
+    (
+        [p1x, p1y, p3x, p3y, p6x, p6y, p8x, p8y],
+        [p8x, p8y, p7x, p7y, p5x, p5y, p2x, p2y],
+    )
 }
 
 /// 切割部分曲线[t1,t2]
@@ -52,7 +50,12 @@ pub fn split_cubic_bezier_part(v: &[f64; 8], t1: f64, t2: f64) -> [f64; 8] {
 }
 
 /// 计算贝塞尔凸包
-pub fn get_convex_hull(dq0: f64, dq1: f64, dq2: f64, dq3: f64) -> Vec<Vec<(f64, f64)>> {
+pub fn get_convex_hull(
+    dq0: f64,
+    dq1: f64,
+    dq2: f64,
+    dq3: f64,
+) -> (Vec<(f64, f64)>, Vec<(f64, f64)>) {
     let p0 = (0.0, dq0);
     let p1 = (1.0 / 3.0, dq1);
     let p2 = (2.0 / 3.0, dq2);
@@ -60,28 +63,34 @@ pub fn get_convex_hull(dq0: f64, dq1: f64, dq2: f64, dq3: f64) -> Vec<Vec<(f64, 
     let dist1: f64 = dq1 - (2.0 * dq0 + dq3) / 3.0;
     let dist2: f64 = dq2 - (dq0 + 2.0 * dq3) / 3.0;
 
-    let mut hull: Vec<Vec<(f64, f64)>>;
+    let hull: (Vec<(f64, f64)>, Vec<(f64, f64)>);
 
     if dist1 * dist2 < 0.0 {
         // 凸包包括两个三角形
-        hull = vec![vec![p0, p1, p3], vec![p0, p2, p3]];
+        hull = (vec![p0, p1, p3], vec![p0, p2, p3]);
     } else {
         let dist_ratio = dist1 / dist2;
 
         if dist_ratio >= 2.0 {
             // 凸包包括一个三角形和一条线段
-            hull = vec![vec![p0, p1, p3], vec![p0, p3]];
+            hull = (vec![p0, p1, p3], vec![p0, p3]);
         } else if dist_ratio <= 0.5 {
             // 凸包包括一个三角形和一条线段
-            hull = vec![vec![p0, p2, p3], vec![p0, p3]];
+            hull = (vec![p0, p2, p3], vec![p0, p3]);
         } else {
             // 凸包包括一个四边形和一条线段
-            hull = vec![vec![p0, p1, p2, p3], vec![p0, p3]];
+            hull = (vec![p0, p1, p2, p3], vec![p0, p3]);
         }
     }
 
-    if dist1 < 0.0 || dist2 < 0.0 {
-        hull.reverse();
+    if dist1 > 0.0 {
+        return hull;
+    }
+    if dist1 < 0.0 {
+        return (hull.1, hull.0);
+    }
+    if dist2 < 0.0 {
+        return (hull.1, hull.0);
     }
 
     hull
@@ -93,7 +102,7 @@ fn clip_convex_hull(
     hull_top: &[Point],
     hull_bottom: &[Point],
     d_min: f64,
-    d_max: f64
+    d_max: f64,
 ) -> Option<f64> {
     if hull_top[0].1 < d_min {
         clip_convex_hull_part(hull_top, true, d_min)
@@ -112,7 +121,7 @@ fn clip_convex_hull_part(part: &[Point], is_top: bool, threshold: f64) -> Option
                 return Some(current_x);
             }
             return Some(
-                prev_x + ((threshold - prev_y) * (current_x - prev_x)) / (current_y - prev_y)
+                prev_x + ((threshold - prev_y) * (current_x - prev_x)) / (current_y - prev_y),
             );
         }
         prev_x = current_x;
@@ -122,17 +131,17 @@ fn clip_convex_hull_part(part: &[Point], is_top: bool, threshold: f64) -> Option
 }
 
 /// Fat Line
-fn get_fatline(v: &[f64]) -> Vec<f64> {
+fn get_fatline(v: &[f64]) -> (f64, f64, f64, f64) {
     let q0x = v[0];
     let q0y = v[1];
     let q3x = v[6];
     let q3y = v[7];
-    let d1 = signed_distance(q0x, q0y, q3x, q3y, v[2], v[3], false).unwrap_or(0.0);
-    let d2 = signed_distance(q0x, q0y, q3x, q3y, v[4], v[5], false).unwrap_or(0.0);
+    let d1 = signed_distance(q0x, q0y, q3x, q3y, v[2], v[3], false);
+    let d2 = signed_distance(q0x, q0y, q3x, q3y, v[4], v[5], false);
     let factor = if d1 * d2 > 0.0 { 3.0 / 4.0 } else { 4.0 / 9.0 };
     let d_min = factor * d1.min(d2).min(0.0);
     let d_max = factor * d1.max(d2).max(0.0);
-    vec![d_min, d_max, d1, d2, factor]
+    (d_min, d_max, d1, d2)
 }
 
 fn signed_distance(
@@ -142,16 +151,24 @@ fn signed_distance(
     mut vy: f64,
     x: f64,
     y: f64,
-    as_vector: bool
-) -> Option<f64> {
+    as_vector: bool,
+) -> f64 {
     if !as_vector {
         vx -= px;
         vy -= py;
     }
     let result = if vx == 0.0 {
-        if vy > 0.0 { x - px } else { px - x }
+        if vy > 0.0 {
+            x - px
+        } else {
+            px - x
+        }
     } else if vy == 0.0 {
-        if vx < 0.0 { y - py } else { py - y }
+        if vx < 0.0 {
+            y - py
+        } else {
+            py - y
+        }
     } else {
         let dist = (x - px) * vy - (y - py) * vx;
         let denom = if vy > vx {
@@ -161,7 +178,7 @@ fn signed_distance(
         };
         dist / denom
     };
-    Some(result)
+    result
 }
 
 fn is_zero(val: f64) -> bool {
@@ -173,20 +190,12 @@ fn is_zero(val: f64) -> bool {
 /// type = 1时，计算曲线上的切线
 /// type = 2时，计算曲线上的法线
 /// type = 3时，计算曲线上的曲率
-pub fn evaluate(v: &[f64], t: f64, type_: u8) -> Vec<f64> {
+pub fn evaluate(v: &[f64], t: f64, type_: u8) -> Option<[f64; 2]> {
     if t.is_nan() || t < 0.0 || t > 1.0 {
-        return vec![];
+        return None;
     }
-    let (mut x0, mut y0, mut x1, mut y1, mut x2, mut y2, x3, y3) = (
-        v[0],
-        v[1],
-        v[2],
-        v[3],
-        v[4],
-        v[5],
-        v[6],
-        v[7],
-    );
+    let (x0, y0, mut x1, mut y1, mut x2, mut y2, x3, y3) =
+        (v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
 
     if is_zero(x1 - x0) && is_zero(y1 - y0) {
         x1 = x0;
@@ -250,8 +259,8 @@ pub fn evaluate(v: &[f64], t: f64, type_: u8) -> Vec<f64> {
     }
 
     match type_ {
-        2 => vec![y, -x],
-        _ => vec![x, y],
+        2 => Some([y, -x]),
+        _ => Some([x, y]),
     }
 }
 
@@ -268,7 +277,7 @@ pub fn line_intersection(
     p2x: f64,
     p2y: f64,
     mut v2x: f64,
-    mut v2y: f64
+    mut v2y: f64,
 ) -> Option<(f64, f64)> {
     v1x -= p1x;
     v1y -= p1y;
@@ -284,7 +293,13 @@ pub fn line_intersection(
         let u_min = -epsilon;
         let u_max = 1.0 + epsilon;
         if u_min < u1 && u1 < u_max && u_min < u2 && u2 < u_max {
-            let t = if u1 <= 0.0 { 0.0 } else if u1 >= 1.0 { 1.0 } else { u1 };
+            let t = if u1 <= 0.0 {
+                0.0
+            } else if u1 >= 1.0 {
+                1.0
+            } else {
+                u1
+            };
             return Some((p1x + t * v1x, p1y + t * v1y));
         }
     }
@@ -292,10 +307,19 @@ pub fn line_intersection(
 }
 
 fn bezier_coeffs(p0: f64, p1: f64, p2: f64, p3: f64) -> [f64; 4] {
-    [-p0 + 3.0 * p1 - 3.0 * p2 + p3, 3.0 * p0 - 6.0 * p1 + 3.0 * p2, -3.0 * p0 + 3.0 * p1, p0]
+    [
+        -p0 + 3.0 * p1 - 3.0 * p2 + p3,
+        3.0 * p0 - 6.0 * p1 + 3.0 * p2,
+        -3.0 * p0 + 3.0 * p1,
+        p0,
+    ]
 }
 fn sgn(x: f64) -> f64 {
-    if x < 0.0 { -1.0 } else { 1.0 }
+    if x < 0.0 {
+        -1.0
+    } else {
+        1.0
+    }
 }
 fn sort_special(mut a: Vec<f64>) -> Vec<f64> {
     let mut flipped = true;
@@ -340,7 +364,7 @@ fn cubic_roots(p: &[f64; 4]) -> Vec<f64> {
         let q_t = (-q.powi(3)).sqrt();
         let th = (r / q_t).acos();
 
-        t[0] = (2.0 * q_sqrt * th.cos()) / 3.0 - a / 3.0;
+        t[0] = 2.0 * q_sqrt * (th / 3.0).cos() - a / 3.0;
         t[1] = 2.0 * q_sqrt * ((th + 2.0 * std::f64::consts::PI) / 3.0).cos() - a / 3.0;
         t[2] = 2.0 * q_sqrt * ((th + 4.0 * std::f64::consts::PI) / 3.0).cos() - a / 3.0;
     }
@@ -368,9 +392,9 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, i
     let by = bezier_coeffs(py[0], py[1], py[2], py[3]); // Implement this function
 
     let p = [
-        a * bx[0] + b * by[0], // t^3
-        a * bx[1] + b * by[1], // t^2
-        a * bx[2] + b * by[2], // t
+        a * bx[0] + b * by[0],     // t^3
+        a * bx[1] + b * by[1],     // t^2
+        a * bx[2] + b * by[2],     // t
         a * bx[3] + b * by[3] + c, // 1
     ];
 
@@ -388,32 +412,162 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, i
         }
 
         if !(t < 0.0 || t > 1.0 || s < 0.0 || s > 1.0) {
-            res.push((t, intersection_x, intersection_y, -1, intersection_x, intersection_y));
+            res.push((
+                t,
+                intersection_x,
+                intersection_y,
+                -1,
+                intersection_x,
+                intersection_y,
+            ));
         }
     }
     res
 }
 
+fn bezier_intersections(
+    v1: &[f64; 8],
+    v2: &[f64; 8],
+    locations: &mut Vec<[f64; 6]>,
+    flip: bool,
+    mut recursion: u8,
+    mut calls: u16,
+    t_min: f64,
+    t_max: f64,
+    u_min: f64,
+    u_max: f64,
+) -> u16 {
+    calls += 1;
+    recursion += 1;
+    if calls >= 4096 || recursion >= 40 {
+        return calls;
+    }
+
+    let fat_line_epsilon = FATLINE_EPSILON;
+    let (q0x, q0y, q3x, q3y) = (v2[0], v2[1], v2[6], v2[7]);
+    let (d_min, d_max, d1, d2) = get_fatline(v2);
+    let dp0 = signed_distance(q0x, q0y, q3x, q3y, v1[0], v1[1], false);
+    let dp1 = signed_distance(q0x, q0y, q3x, q3y, v1[2], v1[3], false);
+    let dp2 = signed_distance(q0x, q0y, q3x, q3y, v1[4], v1[5], false);
+    let dp3 = signed_distance(q0x, q0y, q3x, q3y, v1[6], v1[7], false);
+    let (top, bottom) = get_convex_hull(dp0, dp1, dp2, dp3);
+
+    if d1 == 0.0 && d2 == 0.0 && dp0 == 0.0 && dp1 == 0.0 && dp2 == 0.0 && dp3 == 0.0 {
+        return calls;
+    }
+
+    let t_min_clip = clip_convex_hull(&top, &bottom, d_min, d_max);
+    let t_max_clip = clip_convex_hull(
+        &top.iter().rev().cloned().collect::<Vec<_>>(),
+        &bottom.iter().rev().cloned().collect::<Vec<_>>(),
+        d_min,
+        d_max,
+    );
+
+    let t_min_clip = match t_min_clip {
+        Some(clip) => clip,
+        None => return calls,
+    };
+
+    let t_max_clip = match t_max_clip {
+        Some(clip) => clip,
+        None => return calls,
+    };
+
+    let t_min_new = t_min + (t_max - t_min) * t_min_clip;
+    let t_max_new = t_min + (t_max - t_min) * t_max_clip;
+
+    if (u_max - u_min).max(t_max_new - t_min_new) < fat_line_epsilon {
+        let t = (t_min_new + t_max_new) / 2.0;
+        let u = (u_min + u_max) / 2.0;
+        let (t1, t2) = if flip { (u, t) } else { (t, u) };
+        if t1 < CURVETIME_EPSILON
+            || t1 > 1.0 - CURVETIME_EPSILON
+            || t2 < CURVETIME_EPSILON
+            || t2 > 1.0 - CURVETIME_EPSILON
+        {
+            return calls;
+        }
+
+        if flip {
+            if let Some([x1, y1]) = evaluate(v2, t2, 0) {
+                if let Some([x2, y2]) = evaluate(v1, t1, 0) {
+                    locations.push([t2, x1, y1, t1, x2, y2])
+                }
+            }
+        } else {
+            if let Some([x1, y1]) = evaluate(v1, t1, 0) {
+                if let Some([x2, y2]) = evaluate(v2, t2, 0) {
+                    locations.push([t1, x1, y1, t2, x2, y2])
+                }
+            }
+        };
+    } else {
+        let v1 = split_cubic_bezier_part(v1, t_min_clip, t_max_clip);
+        let u_diff = u_max - u_min;
+
+        if t_max_clip - t_min_clip > 0.8 {
+            if t_max_new - t_min_new > u_diff {
+                let parts = split_cubic_bezier(&v1, 0.5);
+                let t = (t_min_new + t_max_new) / 2.0;
+                calls = bezier_intersections(
+                    v2, &parts.0, locations, !flip, recursion, calls, u_min, u_max, t_min_new, t,
+                );
+                calls = bezier_intersections(
+                    v2, &parts.1, locations, !flip, recursion, calls, u_min, u_max, t, t_max_new,
+                );
+            } else {
+                let parts = split_cubic_bezier(v2, 0.5);
+                let u = (u_min + u_max) / 2.0;
+                calls = bezier_intersections(
+                    &parts.0, &v1, locations, !flip, recursion, calls, u_min, u, t_min_new,
+                    t_max_new,
+                );
+                calls = bezier_intersections(
+                    &parts.1, &v1, locations, !flip, recursion, calls, u, u_max, t_min_new,
+                    t_max_new,
+                );
+            }
+        } else {
+            if u_diff == 0.0 || u_diff >= fat_line_epsilon {
+                calls = bezier_intersections(
+                    v2, &v1, locations, !flip, recursion, calls, u_min, u_max, t_min_new, t_max_new,
+                );
+            } else {
+                calls = bezier_intersections(
+                    &v1, v2, locations, flip, recursion, calls, t_min_new, t_max_new, u_min, u_max,
+                );
+            }
+        }
+    }
+
+    return calls;
+}
+
 /// 寻找最大值，支持浮点数运算
-fn find_max<I>(iterable: I) -> I::Item where I: IntoIterator, I::Item: PartialOrd {
+fn find_max<I>(iterable: I) -> I::Item
+where
+    I: IntoIterator,
+    I::Item: PartialOrd,
+{
     iterable
         .into_iter()
-        .fold(None, |max, x| {
-            match max {
-                None => Some(x),
-                Some(y) => Some(if x > y { x } else { y }),
-            }
+        .fold(None, |max, x| match max {
+            None => Some(x),
+            Some(y) => Some(if x > y { x } else { y }),
         })
         .unwrap()
 }
-fn find_min<I>(iterable: I) -> I::Item where I: IntoIterator, I::Item: PartialOrd {
+fn find_min<I>(iterable: I) -> I::Item
+where
+    I: IntoIterator,
+    I::Item: PartialOrd,
+{
     iterable
         .into_iter()
-        .fold(None, |min, x| {
-            match min {
-                None => Some(x),
-                Some(y) => Some(if x < y { x } else { y }),
-            }
+        .fold(None, |min, x| match min {
+            None => Some(x),
+            Some(y) => Some(if x < y { x } else { y }),
         })
         .unwrap()
 }
@@ -429,11 +583,10 @@ fn get_curve_intersections(v1: &[f64; 8], v2: &[f64; 8], locations: &mut Vec<[f6
     let v2_min_y = find_min(vec![v2[1], v2[3], v2[5], v2[7]]);
     let v2_max_y = find_max(vec![v2[1], v2[3], v2[5], v2[7]]);
 
-    if
-        v1_max_x + epsilon > v2_min_x &&
-        v1_min_x - epsilon < v2_max_x &&
-        v1_max_y + epsilon > v2_min_y &&
-        v1_min_y - epsilon < v2_max_y
+    if v1_max_x + epsilon > v2_min_x
+        && v1_min_x - epsilon < v2_max_x
+        && v1_max_y + epsilon > v2_min_y
+        && v1_min_y - epsilon < v2_max_y
     {
         let straight1 = v1[2] == v1[0] && v1[3] == v1[1] && v1[4] == v1[6] && v1[5] == v1[7];
         let straight2 = v2[2] == v2[0] && v2[3] == v2[1] && v2[4] == v2[6] && v2[5] == v2[7];
@@ -461,23 +614,125 @@ fn get_curve_intersections(v1: &[f64; 8], v2: &[f64; 8], locations: &mut Vec<[f6
             }
             return;
         }
+        // 直线和曲线相交
+        if straight1 || straight2 {
+            let is_v1_line = v1[2] == 0_f64 && v1[3] == 0_f64 && v1[4] == 0_f64 && v1[5] == 0_f64;
+            let curve = if is_v1_line { v2 } else { v1 };
+            let line = if is_v1_line {
+                [v1[0], v1[1], v1[6], v1[7]]
+            } else {
+                [v2[0], v2[1], v2[6], v2[7]]
+            };
+            let instersections = line_and_curve_intersection(curve, &line);
+            for item in &instersections {
+                if is_v1_line {
+                    locations.push([item.3.into(), item.4, item.5, item.0.into(), item.1, item.2]);
+                } else {
+                    locations.push([item.0.into(), item.1, item.2, item.3.into(), item.4, item.5]);
+                }
+            }
+            return;
+        }
+        let vv1 = if flip { v2 } else { v1 };
+        let vv2 = if flip { v1 } else { v2 };
+
+        bezier_intersections(vv1, vv2, locations, flip, 0, 0, 0.0, 1.0, 0.0, 1.0);
     }
+}
+
+fn get_self_intersection(v: &[f64; 8]) -> Option<Vec<f64>> {
+    let (x0, y0, x1, y1, x2, y2, x3, y3) = (v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
+
+    let a1 = x0 * (y3 - y2) + y0 * (x2 - x3) + x3 * y2 - y3 * x2;
+    let a2 = x1 * (y0 - y3) + y1 * (x3 - x0) + x0 * y3 - y0 * x3;
+    let a3 = x2 * (y1 - y0) + y2 * (x0 - x1) + x1 * y0 - y1 * x0;
+
+    let mut d3 = 3.0 * a3;
+    let mut d2 = d3 - a2;
+    let mut d1 = d2 - a2 + a1;
+
+    let l = (d1 * d1 + d2 * d2 + d3 * d3).sqrt();
+    let s = if l != 0.0 { 1.0 / l } else { 0.0 };
+
+    d1 *= s;
+    d2 *= s;
+    d3 *= s;
+
+    if is_zero(d1) {
+        return None;
+    }
+
+    let d = 3.0 * d2 * d2 - 4.0 * d1 * d3;
+
+    if d >= 0.0 {
+        return None;
+    }
+
+    let f1 = if d > 0.0 {
+        (d / 3.0).sqrt()
+    } else {
+        (-d).sqrt()
+    };
+    let f2 = 2.0 * d1;
+    let t1 = (d2 + f1) / f2;
+    let t2 = (d2 - f1) / f2;
+
+    let has_roots = true;
+    let t1_ok = has_roots && t1 > 0.0 && t1 < 1.0;
+    let t2_ok = has_roots && t2 > 0.0 && t2 < 1.0;
+
+    if !(t1_ok && t2_ok) {
+        return None;
+    }
+
+    Some(if t1_ok || t2_ok {
+        if t1_ok && t2_ok {
+            if t1 < t2 {
+                vec![t1, t2]
+            } else {
+                vec![t2, t1]
+            }
+        } else {
+            vec![if t1_ok { t1 } else { t2 }]
+        }
+    } else {
+        vec![]
+    })
 }
 
 pub fn get_intersections(
     curves1: &Vec<[f64; 8]>,
     curves2: &Vec<[f64; 8]>,
     is_self: bool,
-    locations: &mut Vec<[f64; 6]>
+    locations: &mut Vec<[f64; 6]>,
 ) {
+    let bounds_collisions = CollisionDetection::find_curve_bounds_collisions(
+        &curves1,
+        &curves2,
+        is_self,
+        GEOMETRIC_EPSILON,
+    );
     for i in 0..curves1.len() {
         let curve1 = curves1[i];
-        for j in 0..curves2.len() {
-            if is_self && i >= j {
-                continue;
+        if is_self {
+            match get_self_intersection(&curve1) {
+                Some(t) => {
+                    if !t[0].is_nan() && !t[1].is_nan() {
+                        if let Some([x1, y1]) = evaluate(&curve1, t[0], 0) {
+                            if let Some([x2, y2]) = evaluate(&curve1, t[1], 0) {
+                                locations.push([t[0], x1, y1, t[1], x2, y2]);
+                            }
+                        }
+                    }
+                }
+                None => (),
             }
-            let curve2 = curves2[j];
-            get_curve_intersections(&curve1, &curve2, locations);
+        }
+        for &index in &bounds_collisions[i] {
+            if !is_self || index > i as i32 {
+                let curve2 = curves2[index as usize];
+                get_curve_intersections(&curve1, &curve2, locations);
+            }
         }
     }
 }
@@ -486,7 +741,7 @@ pub fn get_intersections(
 pub fn rust_get_intersections(
     curves1: JsValue,
     curves2: JsValue,
-    is_self: bool
+    is_self: bool,
 ) -> Result<JsValue, JsValue> {
     let mut locations = vec![];
     let curves1_vec = serde_wasm_bindgen::from_value(curves1)?;

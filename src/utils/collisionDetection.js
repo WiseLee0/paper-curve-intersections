@@ -20,13 +20,10 @@ export const CollisionDetection = {
         const bounds2 = is_self ? bounds1 : getBounds(curves2);
         return this.findBoundsCollisions(bounds1, bounds2, is_self, tolerance || 0);
     },
-    findBoundsCollisions: function (boundsA, boundsB, is_self, tolerance,
-        sweepVertical, onlySweepAxisCollisions) {
+    findBoundsCollisions: function (boundsA, boundsB, is_self, tolerance) {
         const allBounds = is_self ? boundsA : boundsA.concat(boundsB)
         const lengthA = boundsA.length
         const lengthAll = allBounds.length
-
-
         function binarySearch(indices, coord, value) {
             var lo = 0,
                 hi = indices.length;
@@ -40,9 +37,9 @@ export const CollisionDetection = {
             }
             return lo - 1;
         }
-        var pri0 = sweepVertical ? 1 : 0,
+        var pri0 = 0,
             pri1 = pri0 + 2,
-            sec0 = sweepVertical ? 0 : 1,
+            sec0 = 1,
             sec1 = sec0 + 2;
         var allIndicesByPri0 = new Array(lengthAll);
         for (var i = 0; i < lengthAll; i++) {
@@ -64,37 +61,28 @@ export const CollisionDetection = {
                 var pruneCount = binarySearch(activeIndicesByPri1, pri1,
                     curBounds[pri0] - tolerance) + 1;
                 activeIndicesByPri1.splice(0, pruneCount);
-                if (is_self && onlySweepAxisCollisions) {
-                    curCollisions = curCollisions.concat(activeIndicesByPri1);
-                    for (var j = 0; j < activeIndicesByPri1.length; j++) {
-                        var activeIndex = activeIndicesByPri1[j];
-                        allCollisions[activeIndex].push(origIndex);
-                    }
-                } else {
-                    var curSec1 = curBounds[sec1],
-                        curSec0 = curBounds[sec0];
-                    for (var j = 0; j < activeIndicesByPri1.length; j++) {
-                        var activeIndex = activeIndicesByPri1[j],
-                            activeBounds = allBounds[activeIndex],
-                            isActiveA = activeIndex < lengthA,
-                            isActiveB = is_self || activeIndex >= lengthA;
-                        if (
-                            onlySweepAxisCollisions ||
-                            (
-                                isCurrentA && isActiveB ||
-                                isCurrentB && isActiveA
-                            ) && (
-                                curSec1 >= activeBounds[sec0] - tolerance &&
-                                curSec0 <= activeBounds[sec1] + tolerance
-                            )
-                        ) {
-                            if (isCurrentA && isActiveB) {
-                                curCollisions.push(
-                                    is_self ? activeIndex : activeIndex - lengthA);
-                            }
-                            if (isCurrentB && isActiveA) {
-                                allCollisions[activeIndex].push(origIndex);
-                            }
+                var curSec1 = curBounds[sec1],
+                    curSec0 = curBounds[sec0];
+                for (var j = 0; j < activeIndicesByPri1.length; j++) {
+                    var activeIndex = activeIndicesByPri1[j],
+                        activeBounds = allBounds[activeIndex],
+                        isActiveA = activeIndex < lengthA,
+                        isActiveB = is_self || activeIndex >= lengthA;
+                    if (
+                        (
+                            isCurrentA && isActiveB ||
+                            isCurrentB && isActiveA
+                        ) && (
+                            curSec1 >= activeBounds[sec0] - tolerance &&
+                            curSec0 <= activeBounds[sec1] + tolerance
+                        )
+                    ) {
+                        if (isCurrentA && isActiveB) {
+                            curCollisions.push(
+                                is_self ? activeIndex : activeIndex - lengthA);
+                        }
+                        if (isCurrentB && isActiveA) {
+                            allCollisions[activeIndex].push(origIndex);
                         }
                     }
                 }
