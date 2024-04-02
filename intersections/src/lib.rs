@@ -737,25 +737,62 @@ pub fn get_intersections(
     }
 }
 
-/// 寻找两条路径的相交点
+// /// 寻找两条路径的相交点
+// #[wasm_bindgen]
+// pub fn rust_get_muti_intersections(curves1: JsValue, curves2: JsValue) -> Result<JsValue, JsValue> {
+//     let mut locations = vec![];
+//     let curves1_vec = serde_wasm_bindgen::from_value(curves1)?;
+//     let curves2_vec = serde_wasm_bindgen::from_value(curves2)?;
+
+//     get_intersections(&curves1_vec, &curves2_vec, false, &mut locations);
+
+//     Ok(serde_wasm_bindgen::to_value(&locations)?)
+// }
+
+// /// 寻找当前路径的相交点
+// #[wasm_bindgen]
+// pub fn rust_get_intersections(curves: JsValue) -> Result<JsValue, JsValue> {
+//     let mut locations = vec![];
+//     let curves_vec = serde_wasm_bindgen::from_value(curves)?;
+
+//     get_intersections(&curves_vec, &curves_vec, true, &mut locations);
+
+//     Ok(serde_wasm_bindgen::to_value(&locations)?)
+// }
+
+/// 寻找两条路径的相交点（f64类型）
 #[wasm_bindgen]
-pub fn rust_get_muti_intersections(curves1: JsValue, curves2: JsValue) -> Result<JsValue, JsValue> {
+pub fn rust_get_muti_intersections(slice1: &[f64], slice2: &[f64]) -> Vec<f64> {
     let mut locations = vec![];
-    let curves1_vec = serde_wasm_bindgen::from_value(curves1)?;
-    let curves2_vec = serde_wasm_bindgen::from_value(curves2)?;
-
-    get_intersections(&curves1_vec, &curves2_vec, false, &mut locations);
-
-    Ok(serde_wasm_bindgen::to_value(&locations)?)
+    let curves1: Vec<[f64; 8]> = to_vec_of_arrays(slice1);
+    let curves2: Vec<[f64; 8]> = to_vec_of_arrays(slice2);
+    get_intersections(&curves1, &curves2, false, &mut locations);
+    flatten(locations)
 }
 
-/// 寻找当前路径的相交点
+/// 寻找当前路径的相交点（f64类型）
 #[wasm_bindgen]
-pub fn rust_get_intersections(curves: JsValue) -> Result<JsValue, JsValue> {
+pub fn rust_get_intersections(slice: &[f64]) -> Vec<f64> {
     let mut locations = vec![];
-    let curves_vec = serde_wasm_bindgen::from_value(curves)?;
+    let curves: Vec<[f64; 8]> = to_vec_of_arrays(slice);
+    get_intersections(&curves, &curves, true, &mut locations);
+    flatten(locations)
+}
 
-    get_intersections(&curves_vec, &curves_vec, true, &mut locations);
+fn flatten(vec_of_arrays: Vec<[f64; 6]>) -> Vec<f64> {
+    let mut flattened_vec = Vec::with_capacity(vec_of_arrays.len() * 6);
+    for array in vec_of_arrays {
+        flattened_vec.extend_from_slice(&array);
+    }
+    flattened_vec
+}
 
-    Ok(serde_wasm_bindgen::to_value(&locations)?)
+fn to_vec_of_arrays(slice: &[f64]) -> Vec<[f64; 8]> {
+    return slice
+        .chunks_exact(8)
+        .map(|chunk| {
+            let array: [f64; 8] = chunk.try_into().unwrap();
+            array
+        })
+        .collect();
 }

@@ -21,11 +21,11 @@ export default function App() {
     paper.setup('canvas-id');
     const words1 = paper.project.importSVG(document.getElementById('path1') as any).children[1] as any;
     const inrsections1 = pathToVectorNetwork(words1)
-
     console.time('wasm time')
-    const wasm_res = rust_get_intersections(inrsections1);
+    const wasm_res = rust_get_intersections(new Float64Array(inrsections1.flat()));
+    const wasm_chunk = chunkArray(wasm_res, 6)
     console.timeEnd('wasm time')
-    console.log(wasm_res);
+    console.log(wasm_chunk);
 
     const myIntersections: any = []
     console.time('time')
@@ -78,4 +78,15 @@ export default function App() {
       </svg>
     </div>
   );
+}
+
+
+function chunkArray(array: Float64Array, chunkSize: number) {
+  let result = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    let chunk = array.slice(i, i + chunkSize);
+    result.push(chunk);
+  }
+
+  return result;
 }
