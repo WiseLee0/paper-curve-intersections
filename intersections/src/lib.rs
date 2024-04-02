@@ -737,17 +737,25 @@ pub fn get_intersections(
     }
 }
 
+/// 寻找两条路径的相交点
 #[wasm_bindgen]
-pub fn rust_get_intersections(
-    curves1: JsValue,
-    curves2: JsValue,
-    is_self: bool,
-) -> Result<JsValue, JsValue> {
+pub fn rust_get_muti_intersections(curves1: JsValue, curves2: JsValue) -> Result<JsValue, JsValue> {
     let mut locations = vec![];
     let curves1_vec = serde_wasm_bindgen::from_value(curves1)?;
     let curves2_vec = serde_wasm_bindgen::from_value(curves2)?;
 
-    get_intersections(&curves1_vec, &curves2_vec, is_self, &mut locations);
+    get_intersections(&curves1_vec, &curves2_vec, false, &mut locations);
+
+    Ok(serde_wasm_bindgen::to_value(&locations)?)
+}
+
+/// 寻找当前路径的相交点
+#[wasm_bindgen]
+pub fn rust_get_intersections(curves: JsValue) -> Result<JsValue, JsValue> {
+    let mut locations = vec![];
+    let curves_vec = serde_wasm_bindgen::from_value(curves)?;
+
+    get_intersections(&curves_vec, &curves_vec, true, &mut locations);
 
     Ok(serde_wasm_bindgen::to_value(&locations)?)
 }

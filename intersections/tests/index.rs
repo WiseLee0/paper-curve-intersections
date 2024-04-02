@@ -270,5 +270,5 @@ fn test_bezier_intersections() {
     let curves2 = curves1.clone();
     let mut locations = vec![];
     intersections::get_intersections(&curves1, &curves2, true, &mut locations);
-    println!("{:?}", locations.len());
+    assert_eq!(locations.len(), 13);
 }
