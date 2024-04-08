@@ -428,7 +428,9 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, i
 fn bezier_intersections(
     v1: &[f64; 8],
     v2: &[f64; 8],
-    locations: &mut Vec<[f64; 6]>,
+    i1: f64,
+    i2: f64,
+    locations: &mut Vec<[f64; 8]>,
     flip: bool,
     mut recursion: u8,
     mut calls: u16,
@@ -492,13 +494,13 @@ fn bezier_intersections(
         if flip {
             if let Some([x1, y1]) = evaluate(v2, t2, 0) {
                 if let Some([x2, y2]) = evaluate(v1, t1, 0) {
-                    locations.push([t2, x1, y1, t1, x2, y2])
+                    locations.push([t2, i1, x1, y1, t1, i2, x2, y2])
                 }
             }
         } else {
             if let Some([x1, y1]) = evaluate(v1, t1, 0) {
                 if let Some([x2, y2]) = evaluate(v2, t2, 0) {
-                    locations.push([t1, x1, y1, t2, x2, y2])
+                    locations.push([t1, i1, x1, y1, t2, i2, x2, y2])
                 }
             }
         };
@@ -511,31 +513,35 @@ fn bezier_intersections(
                 let parts = split_cubic_bezier(&v1, 0.5);
                 let t = (t_min_new + t_max_new) / 2.0;
                 calls = bezier_intersections(
-                    v2, &parts.0, locations, !flip, recursion, calls, u_min, u_max, t_min_new, t,
+                    v2, &parts.0, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
+                    t_min_new, t,
                 );
                 calls = bezier_intersections(
-                    v2, &parts.1, locations, !flip, recursion, calls, u_min, u_max, t, t_max_new,
+                    v2, &parts.1, i1, i2, locations, !flip, recursion, calls, u_min, u_max, t,
+                    t_max_new,
                 );
             } else {
                 let parts = split_cubic_bezier(v2, 0.5);
                 let u = (u_min + u_max) / 2.0;
                 calls = bezier_intersections(
-                    &parts.0, &v1, locations, !flip, recursion, calls, u_min, u, t_min_new,
+                    &parts.0, &v1, i1, i2, locations, !flip, recursion, calls, u_min, u, t_min_new,
                     t_max_new,
                 );
                 calls = bezier_intersections(
-                    &parts.1, &v1, locations, !flip, recursion, calls, u, u_max, t_min_new,
+                    &parts.1, &v1, i1, i2, locations, !flip, recursion, calls, u, u_max, t_min_new,
                     t_max_new,
                 );
             }
         } else {
             if u_diff == 0.0 || u_diff >= fat_line_epsilon {
                 calls = bezier_intersections(
-                    v2, &v1, locations, !flip, recursion, calls, u_min, u_max, t_min_new, t_max_new,
+                    v2, &v1, i1, i2, locations, !flip, recursion, calls, u_min, u_max, t_min_new,
+                    t_max_new,
                 );
             } else {
                 calls = bezier_intersections(
-                    &v1, v2, locations, flip, recursion, calls, t_min_new, t_max_new, u_min, u_max,
+                    &v1, v2, i1, i2, locations, flip, recursion, calls, t_min_new, t_max_new,
+                    u_min, u_max,
                 );
             }
         }
@@ -572,7 +578,13 @@ where
         .unwrap()
 }
 
-fn get_curve_intersections(v1: &[f64; 8], v2: &[f64; 8], locations: &mut Vec<[f64; 6]>) {
+fn get_curve_intersections(
+    v1: &[f64; 8],
+    v2: &[f64; 8],
+    i1: f64,
+    i2: f64,
+    locations: &mut Vec<[f64; 8]>,
+) {
     let epsilon = EPSILON; // EPSILON should be defined somewhere in the scope
     let v1_min_x = find_min(vec![v1[0], v1[2], v1[4], v1[6]]);
     let v1_max_x = find_max(vec![v1[0], v1[2], v1[4], v1[6]]);
@@ -609,7 +621,7 @@ fn get_curve_intersections(v1: &[f64; 8], v2: &[f64; 8], locations: &mut Vec<[f6
                     if count == 2 {
                         return;
                     }
-                    locations.push([-1.0, x, y, -1.0, x, y]);
+                    locations.push([-1.0, i1 as f64, x, y, -1.0, i2 as f64, x, y]);
                 }
             }
             return;
@@ -626,9 +638,27 @@ fn get_curve_intersections(v1: &[f64; 8], v2: &[f64; 8], locations: &mut Vec<[f6
             let instersections = line_and_curve_intersection(curve, &line);
             for item in &instersections {
                 if is_v1_line {
-                    locations.push([item.3.into(), item.4, item.5, item.0.into(), item.1, item.2]);
+                    locations.push([
+                        item.3.into(),
+                        i1,
+                        item.4,
+                        item.5,
+                        item.0.into(),
+                        i2,
+                        item.1,
+                        item.2,
+                    ]);
                 } else {
-                    locations.push([item.0.into(), item.1, item.2, item.3.into(), item.4, item.5]);
+                    locations.push([
+                        item.0.into(),
+                        i1,
+                        item.1,
+                        item.2,
+                        item.3.into(),
+                        i2,
+                        item.4,
+                        item.5,
+                    ]);
                 }
             }
             return;
@@ -636,7 +666,7 @@ fn get_curve_intersections(v1: &[f64; 8], v2: &[f64; 8], locations: &mut Vec<[f6
         let vv1 = if flip { v2 } else { v1 };
         let vv2 = if flip { v1 } else { v2 };
 
-        bezier_intersections(vv1, vv2, locations, flip, 0, 0, 0.0, 1.0, 0.0, 1.0);
+        bezier_intersections(vv1, vv2, i1, i2, locations, flip, 0, 0, 0.0, 1.0, 0.0, 1.0);
     }
 }
 
@@ -704,7 +734,7 @@ pub fn get_intersections(
     curves1: &Vec<[f64; 8]>,
     curves2: &Vec<[f64; 8]>,
     is_self: bool,
-    locations: &mut Vec<[f64; 6]>,
+    locations: &mut Vec<[f64; 8]>,
 ) {
     let bounds_collisions = CollisionDetection::find_curve_bounds_collisions(
         &curves1,
@@ -720,7 +750,7 @@ pub fn get_intersections(
                     if !t[0].is_nan() && !t[1].is_nan() {
                         if let Some([x1, y1]) = evaluate(&curve1, t[0], 0) {
                             if let Some([x2, y2]) = evaluate(&curve1, t[1], 0) {
-                                locations.push([t[0], x1, y1, t[1], x2, y2]);
+                                locations.push([t[0], i as f64, x1, y1, t[1], i as f64, x2, y2]);
                             }
                         }
                     }
@@ -731,7 +761,7 @@ pub fn get_intersections(
         for &index in &bounds_collisions[i] {
             if !is_self || index > i as i32 {
                 let curve2 = curves2[index as usize];
-                get_curve_intersections(&curve1, &curve2, locations);
+                get_curve_intersections(&curve1, &curve2, i as f64, index as f64, locations);
             }
         }
     }
@@ -779,8 +809,8 @@ pub fn rust_get_intersections(slice: &[f64]) -> Vec<f64> {
     flatten(locations)
 }
 
-fn flatten(vec_of_arrays: Vec<[f64; 6]>) -> Vec<f64> {
-    let mut flattened_vec = Vec::with_capacity(vec_of_arrays.len() * 6);
+fn flatten(vec_of_arrays: Vec<[f64; 8]>) -> Vec<f64> {
+    let mut flattened_vec = Vec::with_capacity(vec_of_arrays.len() * 8);
     for array in vec_of_arrays {
         flattened_vec.extend_from_slice(&array);
     }

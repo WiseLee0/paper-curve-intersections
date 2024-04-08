@@ -23,7 +23,7 @@ export default function App() {
     const inrsections1 = pathToVectorNetwork(words1)
     console.time('wasm time')
     const wasm_res = rust_get_intersections(new Float64Array(inrsections1.flat()));
-    const wasm_chunk = chunkArray(wasm_res, 6)
+    const wasm_chunk = chunkArray(wasm_res, 8)
     console.timeEnd('wasm time')
     console.log(wasm_chunk);
 
