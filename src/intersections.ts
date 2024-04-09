@@ -135,7 +135,7 @@ const isZero = (val: number) => val >= -EPSILON && val <= EPSILON;
 /// type = 1时，计算曲线上的切线
 /// type = 2时，计算曲线上的法线
 /// type = 3时，计算曲线上的曲率
-export function evaluate(v: number[], t: number, type: number, normalized = false) {
+export function evaluate(v: number[], t: number) {
     if (t == null || t < 0 || t > 1) return [];
     let [x0, y0, x1, y1, x2, y2, x3, y3] = v;
     if (isZero(x1 - x0) && isZero(y1 - y0)) {
@@ -153,43 +153,9 @@ export function evaluate(v: number[], t: number, type: number, normalized = fals
     const by = 3 * (y2 - y1) - cy
     const ay = y3 - y0 - cy - by
     let x, y
-    if (type === 0) {
-        x = t === 0 ? x0 : t === 1 ? x3 : ((ax * t + bx) * t + cx) * t + x0;
-        y = t === 0 ? y0 : t === 1 ? y3 : ((ay * t + by) * t + cy) * t + y0;
-    } else {
-        const tMin = CURVETIME_EPSILON,
-            tMax = 1 - tMin;
-        if (t < tMin) {
-            x = cx;
-            y = cy;
-        } else if (t > tMax) {
-            x = 3 * (x3 - x2);
-            y = 3 * (y3 - y2);
-        } else {
-            x = (3 * ax * t + 2 * bx) * t + cx;
-            y = (3 * ay * t + 2 * by) * t + cy;
-        }
-        if (normalized) {
-            if (x === 0 && y === 0 && (t < tMin || t > tMax)) {
-                x = x2 - x1;
-                y = y2 - y1;
-            }
-            const len = Math.sqrt(x * x + y * y);
-            if (len) {
-                x /= len;
-                y /= len;
-            }
-        }
-        if (type === 3) {
-
-            const x2 = 6 * ax * t + 2 * bx
-            const y2 = 6 * ay * t + 2 * by
-            const d = Math.pow(x * x + y * y, 3 / 2)
-            x = d !== 0 ? (x * y2 - y * x2) / d : 0;
-            y = 0;
-        }
-    }
-    return type === 2 ? [y, -x] : [x, y];
+    x = t === 0 ? x0 : t === 1 ? x3 : ((ax * t + bx) * t + cx) * t + x0;
+    y = t === 0 ? y0 : t === 1 ? y3 : ((ay * t + by) * t + cy) * t + y0;
+    return [x, y];
 }
 const isMachineZero = (val: number) => val >= -MACHINE_EPSILON && val <= MACHINE_EPSILON;
 
@@ -328,7 +294,7 @@ function lineAndCurveIntersection(v: number[], line: number[]) {
 }
 
 /// 计算曲线相交
-const bezierIntersections = (v1: number[], v2: number[], locations: number[][], flip = false, recursion = 0, calls = 0, tMin = 0.0, tMax = 1.0, uMin = 0.0, uMax = 1.0) => {
+const bezierIntersections = (v1: number[], v2: number[], c1: number[], c2: number[], locations: number[][], flip = false, recursion = 0, calls = 0, tMin = 0.0, tMax = 1.0, uMin = 0.0, uMax = 1.0) => {
     // 避免更深层次的递归
     if (++calls >= 4096 || ++recursion >= 40) {
         return calls
@@ -369,12 +335,12 @@ const bezierIntersections = (v1: number[], v2: number[], locations: number[][], 
         }
         let intersections: any
         if (flip) {
-            const [x1, y1] = evaluate(v2, t2, 0)
-            const [x2, y2] = evaluate(v1, t1, 0)
-            intersections = [t2, x1, y1, t1, x2, y2];
+            const [x1, y1] = evaluate(c1, t1)
+            const [x2, y2] = evaluate(c2, t2)
+            intersections = [t1, x1, y1, t2, x2, y2];
         } else {
-            const [x1, y1] = evaluate(v1, t1, 0)
-            const [x2, y2] = evaluate(v2, t2, 0)
+            const [x1, y1] = evaluate(c1, t1)
+            const [x2, y2] = evaluate(c2, t2)
             intersections = [t1, x1, y1, t2, x2, y2];
         }
         locations.push(intersections)
@@ -386,19 +352,19 @@ const bezierIntersections = (v1: number[], v2: number[], locations: number[][], 
             if (tMaxNew - tMinNew > uDiff) {
                 const parts = splitCubicBezier(v1, 0.5)
                 const t = (tMinNew + tMaxNew) / 2;
-                calls = bezierIntersections(v2, parts[0], locations, !flip, recursion, calls, uMin, uMax, tMinNew, t);
-                calls = bezierIntersections(v2, parts[1], locations, !flip, recursion, calls, uMin, uMax, t, tMaxNew);
+                calls = bezierIntersections(v2, parts[0], c1, c2, locations, !flip, recursion, calls, uMin, uMax, tMinNew, t);
+                calls = bezierIntersections(v2, parts[1], c1, c2, locations, !flip, recursion, calls, uMin, uMax, t, tMaxNew);
             } else {
                 const parts = splitCubicBezier(v2, 0.5)
                 const u = (uMin + uMax) / 2;
-                calls = bezierIntersections(parts[0], v1, locations, !flip, recursion, calls, uMin, u, tMinNew, tMaxNew);
-                calls = bezierIntersections(parts[1], v1, locations, !flip, recursion, calls, u, uMax, tMinNew, tMaxNew);
+                calls = bezierIntersections(parts[0], v1, c1, c2, locations, !flip, recursion, calls, uMin, u, tMinNew, tMaxNew);
+                calls = bezierIntersections(parts[1], v1, c1, c2, locations, !flip, recursion, calls, u, uMax, tMinNew, tMaxNew);
             }
         } else {
             if (uDiff === 0 || uDiff >= fatLineEpsilon) {
-                calls = bezierIntersections(v2, v1, locations, !flip, recursion, calls, uMin, uMax, tMinNew, tMaxNew);
+                calls = bezierIntersections(v2, v1, c1, c2, locations, !flip, recursion, calls, uMin, uMax, tMinNew, tMaxNew);
             } else {
-                calls = bezierIntersections(v1, v2, locations, flip, recursion, calls, tMinNew, tMaxNew, uMin, uMax);
+                calls = bezierIntersections(v1, v2, c1, c2, locations, flip, recursion, calls, tMinNew, tMaxNew, uMin, uMax);
             }
         }
     }
@@ -477,7 +443,7 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
         }
 
         // 曲线和曲线相交
-        bezierIntersections(flip ? v2 : v1, flip ? v1 : v2, locations, flip)
+        bezierIntersections(flip ? v2 : v1, flip ? v1 : v2, flip ? v2 : v1, flip ? v1 : v2, locations, flip)
     }
 }
 
@@ -497,8 +463,8 @@ export const getIntersections = (curves1: number[][], curves2: number[][] | unde
             if (t) {
                 let [t1, t2] = t
                 if (t1 && t2) {
-                    const [x1, y1] = evaluate(curve1, t1, 0)
-                    const [x2, y2] = evaluate(curve1, t2, 0)
+                    const [x1, y1] = evaluate(curve1, t1)
+                    const [x2, y2] = evaluate(curve1, t2)
                     locations.push([t1, x1, y1, t2, x2, y2])
                 }
             }

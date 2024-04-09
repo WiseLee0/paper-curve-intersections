@@ -428,6 +428,8 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, i
 fn bezier_intersections(
     v1: &[f64; 8],
     v2: &[f64; 8],
+    c1: &[f64; 8],
+    c2: &[f64; 8],
     i1: f64,
     i2: f64,
     locations: &mut Vec<[f64; 8]>,
@@ -492,14 +494,14 @@ fn bezier_intersections(
         }
 
         if flip {
-            if let Some([x1, y1]) = evaluate(v2, t2, 0) {
-                if let Some([x2, y2]) = evaluate(v1, t1, 0) {
-                    locations.push([t2, i1, x1, y1, t1, i2, x2, y2])
+            if let Some([x1, y1]) = evaluate(c1, t1, 0) {
+                if let Some([x2, y2]) = evaluate(c2, t2, 0) {
+                    locations.push([t1, i1, x1, y1, t2, i2, x2, y2])
                 }
             }
         } else {
-            if let Some([x1, y1]) = evaluate(v1, t1, 0) {
-                if let Some([x2, y2]) = evaluate(v2, t2, 0) {
+            if let Some([x1, y1]) = evaluate(c1, t1, 0) {
+                if let Some([x2, y2]) = evaluate(c2, t2, 0) {
                     locations.push([t1, i1, x1, y1, t2, i2, x2, y2])
                 }
             }
@@ -513,35 +515,35 @@ fn bezier_intersections(
                 let parts = split_cubic_bezier(&v1, 0.5);
                 let t = (t_min_new + t_max_new) / 2.0;
                 calls = bezier_intersections(
-                    v2, &parts.0, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
+                    v2, &parts.0, c1, c2, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
                     t_min_new, t,
                 );
                 calls = bezier_intersections(
-                    v2, &parts.1, i1, i2, locations, !flip, recursion, calls, u_min, u_max, t,
-                    t_max_new,
+                    v2, &parts.1, c1, c2, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
+                    t, t_max_new,
                 );
             } else {
                 let parts = split_cubic_bezier(v2, 0.5);
                 let u = (u_min + u_max) / 2.0;
                 calls = bezier_intersections(
-                    &parts.0, &v1, i1, i2, locations, !flip, recursion, calls, u_min, u, t_min_new,
-                    t_max_new,
+                    &parts.0, &v1, c1, c2, i1, i2, locations, !flip, recursion, calls, u_min, u,
+                    t_min_new, t_max_new,
                 );
                 calls = bezier_intersections(
-                    &parts.1, &v1, i1, i2, locations, !flip, recursion, calls, u, u_max, t_min_new,
-                    t_max_new,
+                    &parts.1, &v1, c1, c2, i1, i2, locations, !flip, recursion, calls, u, u_max,
+                    t_min_new, t_max_new,
                 );
             }
         } else {
             if u_diff == 0.0 || u_diff >= fat_line_epsilon {
                 calls = bezier_intersections(
-                    v2, &v1, i1, i2, locations, !flip, recursion, calls, u_min, u_max, t_min_new,
-                    t_max_new,
+                    v2, &v1, c1, c2, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
+                    t_min_new, t_max_new,
                 );
             } else {
                 calls = bezier_intersections(
-                    &v1, v2, i1, i2, locations, flip, recursion, calls, t_min_new, t_max_new,
-                    u_min, u_max,
+                    &v1, v2, c1, c2, i1, i2, locations, flip, recursion, calls, t_min_new,
+                    t_max_new, u_min, u_max,
                 );
             }
         }
@@ -666,7 +668,9 @@ fn get_curve_intersections(
         let vv1 = if flip { v2 } else { v1 };
         let vv2 = if flip { v1 } else { v2 };
 
-        bezier_intersections(vv1, vv2, i1, i2, locations, flip, 0, 0, 0.0, 1.0, 0.0, 1.0);
+        bezier_intersections(
+            vv1, vv2, vv1, vv2, i1, i2, locations, flip, 0, 0, 0.0, 1.0, 0.0, 1.0,
+        );
     }
 }
 
@@ -807,6 +811,23 @@ pub fn rust_get_intersections(slice: &[f64]) -> Vec<f64> {
     let curves: Vec<[f64; 8]> = to_vec_of_arrays(slice);
     get_intersections(&curves, &curves, true, &mut locations);
     flatten(locations)
+}
+
+/// 切割部分曲线[t1,t2]
+#[wasm_bindgen]
+pub fn rust_split_cubic_bezier_part(v: &[f64], t1: f64, t2: f64) -> Vec<f64> {
+    let mut v_part = [0.0; 8];
+    for (i, &value) in v.iter().enumerate() {
+        v_part[i] = value;
+    }
+    if t1 > 0.0 {
+        v_part = split_cubic_bezier(&v_part, t1).1;
+    }
+    if t2 < 1.0 {
+        let t = (t2 - t1) / (1.0 - t1);
+        v_part = split_cubic_bezier(&v_part, t).0;
+    }
+    v_part.to_vec()
 }
 
 fn flatten(vec_of_arrays: Vec<[f64; 8]>) -> Vec<f64> {
