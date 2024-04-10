@@ -472,8 +472,9 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
                 if (count === 2) return;
                 const t1 = calculateTValue(v1[0], v1[1], v1[6], v1[7], pt[0], pt[1])
                 const t2 = calculateTValue(v2[0], v2[1], v2[6], v2[7], pt[0], pt[1])
-                if (t1 > 1 - GEOMETRIC_EPSILON || t1 < GEOMETRIC_EPSILON) return
-                if (t2 > 1 - GEOMETRIC_EPSILON || t2 < GEOMETRIC_EPSILON) return
+                if (t1 > 1 - GEOMETRIC_EPSILON || t1 < GEOMETRIC_EPSILON) count++
+                if (t2 > 1 - GEOMETRIC_EPSILON || t2 < GEOMETRIC_EPSILON) count++
+                if (count === 4) return;
                 locations.push([t1, pt[0], pt[1], t2, pt[0], pt[1]])
             }
             return

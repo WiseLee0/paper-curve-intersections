@@ -678,9 +678,12 @@ fn get_curve_intersections(
                     let t1 = calculate_t_value(v1[0], v1[1], v1[6], v1[7], x, y);
                     let t2 = calculate_t_value(v2[0], v2[1], v2[6], v2[7], x, y);
                     if t1 > 1.0 - GEOMETRIC_EPSILON || t1 < GEOMETRIC_EPSILON {
-                        return;
+                        count += 1;
                     }
                     if t2 > 1.0 - GEOMETRIC_EPSILON || t2 < GEOMETRIC_EPSILON {
+                        count += 1;
+                    }
+                    if count == 4 {
                         return;
                     }
                     locations.push([t1, i1 as f64, x, y, t2, i2 as f64, x, y]);
