@@ -207,6 +207,33 @@ function sortSpecial(a: number[]): number[] {
 }
 function cubicRoots(P: number[]): number[] {
     if (P.length !== 4) throw new Error('Array must contain exactly four elements.');
+    if (P[0] === 0) {
+        if (P[1] === 0) {
+            const t = [-1, -1, -1];
+            t[0] = -1 * (P[3] / P[2]);
+            t[1] = -1;
+            t[2] = -1;
+
+            /*discard out of spec roots*/
+            for (let i = 0; i < 1; i++)
+                if (t[i] < 0 || t[i] > 1.0 || isNaN(t[i])) t[i] = -1;
+
+            /*sort but place -1 at the end*/
+            return sortSpecial(t);
+        }
+        let DQ = P[2] * P[2] - 4 * P[1] * P[3]; // quadratic discriminant
+        if (DQ >= 0) {
+            DQ = Math.sqrt(DQ);
+            const t = [-1, -1, -1];
+            t[0] = -1 * ((DQ + P[2]) / (2 * P[1]));
+            t[1] = ((DQ - P[2]) / (2 * P[1]));
+            t[2] = -1;
+
+            for (let i = 0; i < 2; i++)
+                if (t[i] < 0 || t[i] > 1.0 || isNaN(t[i])) t[i] = -1;
+            return sortSpecial(t);
+        }
+    }
     const [a, b, c, d] = P;
 
     const A = b / a;
@@ -250,6 +277,19 @@ function cubicRoots(P: number[]): number[] {
 
     return t;
 }
+
+function calculateTValue(x1: number, y1: number, x2: number, y2: number, x: number, y: number): number {
+    // 计算向量 (x2 - x1, y2 - y1) 和 (x - x1, y - y1) 的点积
+    const dotProduct = (x - x1) * (x2 - x1) + (y - y1) * (y2 - y1);
+    // 计算向量 (x2 - x1, y2 - y1) 的长度的平方
+    const lineLengthSquared = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+
+    // 计算参数 t 的值，这是点 (x, y) 在直线上的位置
+    const t = dotProduct / lineLengthSquared;
+
+    return t;
+}
+
 /// 计算直线和曲线相交
 function lineAndCurveIntersection(v: number[], line: number[]) {
     const px = [v[0], v[2], v[4], v[6]]
@@ -284,10 +324,11 @@ function lineAndCurveIntersection(v: number[], line: number[]) {
             s = (intersectionY - ly[0]) / (ly[1] - ly[0]);
         }
 
-        if (t < 0 || t > 1.0 || s < 0 || s > 1.0) {
+        if (t <= CURVETIME_EPSILON || t >= 1 - CURVETIME_EPSILON || s < 0 || s > 1.0) {
             continue
         } else {
-            res.push([t, intersectionX, intersectionY, -1, intersectionX, intersectionY])
+            const lineT = calculateTValue(line[0], line[1], line[2], line[3], intersectionX, intersectionY)
+            res.push([t, intersectionX, intersectionY, lineT, intersectionX, intersectionY])
         }
     }
     return res
@@ -330,19 +371,16 @@ const bezierIntersections = (v1: number[], v2: number[], c1: number[], c2: numbe
         const u = (uMin + uMax) / 2;
         const t1 = flip ? u : t
         const t2 = flip ? t : u
-        if (t1 < CURVETIME_EPSILON || t1 > 1 - CURVETIME_EPSILON || t2 < CURVETIME_EPSILON || t2 > 1 - CURVETIME_EPSILON) {
+        const cc1 = flip ? c2 : c1
+        const cc2 = flip ? c1 : c2
+
+        if (t1 > 1 - CURVETIME_EPSILON || t1 < CURVETIME_EPSILON || t2 > 1 - CURVETIME_EPSILON || t2 < CURVETIME_EPSILON) {
             return calls
         }
         let intersections: any
-        if (flip) {
-            const [x1, y1] = evaluate(c1, t1)
-            const [x2, y2] = evaluate(c2, t2)
-            intersections = [t1, x1, y1, t2, x2, y2];
-        } else {
-            const [x1, y1] = evaluate(c1, t1)
-            const [x2, y2] = evaluate(c2, t2)
-            intersections = [t1, x1, y1, t2, x2, y2];
-        }
+        const [x1, y1] = evaluate(cc1, t1)
+        const [x2, y2] = evaluate(cc2, t2)
+        intersections = [t1, x1, y1, t2, x2, y2];
         locations.push(intersections)
     } else {
         v1 = splitCubicBezierPart(v1, tMinClip, tMaxClip);
@@ -352,17 +390,17 @@ const bezierIntersections = (v1: number[], v2: number[], c1: number[], c2: numbe
             if (tMaxNew - tMinNew > uDiff) {
                 const parts = splitCubicBezier(v1, 0.5)
                 const t = (tMinNew + tMaxNew) / 2;
-                calls = bezierIntersections(v2, parts[0], c1, c2, locations, !flip, recursion, calls, uMin, uMax, tMinNew, t);
-                calls = bezierIntersections(v2, parts[1], c1, c2, locations, !flip, recursion, calls, uMin, uMax, t, tMaxNew);
+                calls = bezierIntersections(v2, parts[0], c2, c1, locations, !flip, recursion, calls, uMin, uMax, tMinNew, t);
+                calls = bezierIntersections(v2, parts[1], c2, c1, locations, !flip, recursion, calls, uMin, uMax, t, tMaxNew);
             } else {
                 const parts = splitCubicBezier(v2, 0.5)
                 const u = (uMin + uMax) / 2;
-                calls = bezierIntersections(parts[0], v1, c1, c2, locations, !flip, recursion, calls, uMin, u, tMinNew, tMaxNew);
-                calls = bezierIntersections(parts[1], v1, c1, c2, locations, !flip, recursion, calls, u, uMax, tMinNew, tMaxNew);
+                calls = bezierIntersections(parts[0], v1, c2, c1, locations, !flip, recursion, calls, uMin, u, tMinNew, tMaxNew);
+                calls = bezierIntersections(parts[1], v1, c2, c1, locations, !flip, recursion, calls, u, uMax, tMinNew, tMaxNew);
             }
         } else {
             if (uDiff === 0 || uDiff >= fatLineEpsilon) {
-                calls = bezierIntersections(v2, v1, c1, c2, locations, !flip, recursion, calls, uMin, uMax, tMinNew, tMaxNew);
+                calls = bezierIntersections(v2, v1, c2, c1, locations, !flip, recursion, calls, uMin, uMax, tMinNew, tMaxNew);
             } else {
                 calls = bezierIntersections(v1, v2, c1, c2, locations, flip, recursion, calls, tMinNew, tMaxNew, uMin, uMax);
             }
@@ -374,6 +412,9 @@ const bezierIntersections = (v1: number[], v2: number[], c1: number[], c2: numbe
 // 获取自相交点
 const getSelfIntersection = (v: number[]) => {
     const [x0, y0, x1, y1, x2, y2, x3, y3] = v;
+    const hasIntersection = lineIntersection(x0, y0, x1, y1, x2, y2, x3, y3)
+    if (!hasIntersection) return null
+
     const a1 = x0 * (y3 - y2) + y0 * (x2 - x3) + x3 * y2 - y3 * x2
     const a2 = x1 * (y0 - y3) + y1 * (x3 - x0) + x0 * y3 - y0 * x3
     const a3 = x2 * (y1 - y0) + y2 * (x0 - x1) + x1 * y0 - y1 * x0
@@ -415,6 +456,11 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
         const straight2 = (v2[2] === v2[0] && v2[3] === v2[1] && v2[4] === v2[6] && v2[5] === v2[7])
         const straight = straight1 && straight2
         const flip = straight1 && !straight2
+        // 过滤共线情况
+        if (v1[0] === v2[6] && v1[1] === v2[7] && v1[2] === v2[4] && v1[3] === v2[5] && v1[4] === v2[2] && v1[5] === v2[3]) {
+            return
+        }
+
         // 直线相交，控制点和起点/终点一致
         if (straight) {
             const pt = lineIntersection(v1[0], v1[1], v1[6], v1[7], v2[0], v2[1], v2[6], v2[7])
@@ -424,19 +470,24 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
                 if ((pt[0] === v2[0] && pt[1] === v2[1]) || (pt[0] === v2[6] && pt[1] === v2[7])) count++
                 // 过滤起点和终点重合情况
                 if (count === 2) return;
-                locations.push([-1, pt[0], pt[1], -1, pt[0], pt[1]])
+                const t1 = calculateTValue(v1[0], v1[1], v1[6], v1[7], pt[0], pt[1])
+                const t2 = calculateTValue(v2[0], v2[1], v2[6], v2[7], pt[0], pt[1])
+                if (t1 > 1 - GEOMETRIC_EPSILON || t1 < GEOMETRIC_EPSILON) return
+                if (t2 > 1 - GEOMETRIC_EPSILON || t2 < GEOMETRIC_EPSILON) return
+                locations.push([t1, pt[0], pt[1], t2, pt[0], pt[1]])
             }
             return
         }
         // 直线和曲线相交
         if (straight1 || straight2) {
-            const isV1Line = (v1[2] === 0 && v1[3] === 0 && v1[4] === 0 && v1[5] === 0)
-            const curve = isV1Line ? v2 : v1
-            const line = isV1Line ? [v1[0], v1[1], v1[6], v1[7]] : [v2[0], v2[1], v2[6], v2[7]]
+            const curve = straight1 ? v2 : v1
+            const line = straight1 ? [v1[0], v1[1], v1[6], v1[7]] : [v2[0], v2[1], v2[6], v2[7]]
             const instersections = lineAndCurveIntersection(curve, line)
             for (let i = 0; i < instersections.length; i++) {
                 const item = instersections[i];
-                if (isV1Line) locations.push([item[3], item[4], item[5], item[0], item[1], item[2]])
+                // 排除端点重合
+                if (item[3] > 1 - GEOMETRIC_EPSILON || item[3] < GEOMETRIC_EPSILON) continue
+                if (straight1) locations.push([item[3], item[4], item[5], item[0], item[1], item[2]])
                 else locations.push(item)
             }
             return

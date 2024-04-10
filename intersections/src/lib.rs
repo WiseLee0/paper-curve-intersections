@@ -335,6 +335,34 @@ fn sort_special(mut a: Vec<f64>) -> Vec<f64> {
     a
 }
 fn cubic_roots(p: &[f64; 4]) -> Vec<f64> {
+    if p[0] == 0.0 {
+        if p[1] == 0.0 {
+            let mut t = vec![-1.0; 3];
+            t[0] = -1.0 * (p[3] / p[2]);
+            t[1] = -1.0;
+            t[2] = -1.0;
+            if t[0] < 0.0 || t[0] > 1.0 || t[0].is_nan() {
+                t[0] = -1.0;
+            }
+            return sort_special(t);
+        }
+
+        let mut dq = p[2] * p[2] - 4.0 * p[1] * p[3];
+        if dq >= 0.0 {
+            dq = dq.sqrt();
+            let mut t = vec![-1.0; 3];
+            t[0] = -1.0 * ((dq + p[2]) / (2.0 * p[1]));
+            t[1] = (dq - p[2]) / (2.0 * p[1]);
+            t[2] = -1.0;
+            if t[0] < 0.0 || t[0] > 1.0 || t[0].is_nan() {
+                t[0] = -1.0;
+            }
+            if t[1] < 0.0 || t[1] > 1.0 || t[1].is_nan() {
+                t[1] = -1.0;
+            }
+            return sort_special(t);
+        }
+    }
     let a = p[1] / p[0];
     let b = p[2] / p[0];
     let c = p[3] / p[0];
@@ -378,8 +406,21 @@ fn cubic_roots(p: &[f64; 4]) -> Vec<f64> {
     sort_special(t)
 }
 
+fn calculate_t_value(x1: f64, y1: f64, x2: f64, y2: f64, x: f64, y: f64) -> f64 {
+    // Calculate the dot product of vectors (x2 - x1, y2 - y1) and (x - x1, y - y1)
+    let dot_product = (x - x1) * (x2 - x1) + (y - y1) * (y2 - y1);
+
+    // Calculate the square of the length of vector (x2 - x1, y2 - y1)
+    let line_length_squared = (x2 - x1).powi(2) + (y2 - y1).powi(2);
+
+    // Calculate the value of parameter t, which is the position of point (x, y) on the line
+    let t = dot_product / line_length_squared;
+
+    t
+}
+
 /// 计算直线和曲线相交
-fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, i32, f64, f64)> {
+fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, f64, f64, f64)> {
     let px = [v[0], v[2], v[4], v[6]];
     let py = [v[1], v[3], v[5], v[7]];
     let lx = [line[0], line[2]];
@@ -411,12 +452,20 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, i
             s = (intersection_y - ly[0]) / (ly[1] - ly[0]);
         }
 
-        if !(t < 0.0 || t > 1.0 || s < 0.0 || s > 1.0) {
+        if !(t <= CURVETIME_EPSILON || t >= 1.0 - CURVETIME_EPSILON || s < 0.0 || s > 1.0) {
+            let t2 = calculate_t_value(
+                line[0],
+                line[1],
+                line[2],
+                line[3],
+                intersection_x,
+                intersection_y,
+            );
             res.push((
                 t,
                 intersection_x,
                 intersection_y,
-                -1,
+                t2,
                 intersection_x,
                 intersection_y,
             ));
@@ -485,6 +534,7 @@ fn bezier_intersections(
         let t = (t_min_new + t_max_new) / 2.0;
         let u = (u_min + u_max) / 2.0;
         let (t1, t2) = if flip { (u, t) } else { (t, u) };
+        let (cc1, cc2) = if flip { (c2, c1) } else { (c1, c2) };
         if t1 < CURVETIME_EPSILON
             || t1 > 1.0 - CURVETIME_EPSILON
             || t2 < CURVETIME_EPSILON
@@ -493,19 +543,11 @@ fn bezier_intersections(
             return calls;
         }
 
-        if flip {
-            if let Some([x1, y1]) = evaluate(c1, t1, 0) {
-                if let Some([x2, y2]) = evaluate(c2, t2, 0) {
-                    locations.push([t1, i1, x1, y1, t2, i2, x2, y2])
-                }
+        if let Some([x1, y1]) = evaluate(cc1, t1, 0) {
+            if let Some([x2, y2]) = evaluate(cc2, t2, 0) {
+                locations.push([t1, i1, x1, y1, t2, i2, x2, y2])
             }
-        } else {
-            if let Some([x1, y1]) = evaluate(c1, t1, 0) {
-                if let Some([x2, y2]) = evaluate(c2, t2, 0) {
-                    locations.push([t1, i1, x1, y1, t2, i2, x2, y2])
-                }
-            }
-        };
+        }
     } else {
         let v1 = split_cubic_bezier_part(v1, t_min_clip, t_max_clip);
         let u_diff = u_max - u_min;
@@ -515,29 +557,29 @@ fn bezier_intersections(
                 let parts = split_cubic_bezier(&v1, 0.5);
                 let t = (t_min_new + t_max_new) / 2.0;
                 calls = bezier_intersections(
-                    v2, &parts.0, c1, c2, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
+                    v2, &parts.0, c2, c1, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
                     t_min_new, t,
                 );
                 calls = bezier_intersections(
-                    v2, &parts.1, c1, c2, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
+                    v2, &parts.1, c2, c1, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
                     t, t_max_new,
                 );
             } else {
                 let parts = split_cubic_bezier(v2, 0.5);
                 let u = (u_min + u_max) / 2.0;
                 calls = bezier_intersections(
-                    &parts.0, &v1, c1, c2, i1, i2, locations, !flip, recursion, calls, u_min, u,
+                    &parts.0, &v1, c2, c1, i1, i2, locations, !flip, recursion, calls, u_min, u,
                     t_min_new, t_max_new,
                 );
                 calls = bezier_intersections(
-                    &parts.1, &v1, c1, c2, i1, i2, locations, !flip, recursion, calls, u, u_max,
+                    &parts.1, &v1, c2, c1, i1, i2, locations, !flip, recursion, calls, u, u_max,
                     t_min_new, t_max_new,
                 );
             }
         } else {
             if u_diff == 0.0 || u_diff >= fat_line_epsilon {
                 calls = bezier_intersections(
-                    v2, &v1, c1, c2, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
+                    v2, &v1, c2, c1, i1, i2, locations, !flip, recursion, calls, u_min, u_max,
                     t_min_new, t_max_new,
                 );
             } else {
@@ -606,6 +648,16 @@ fn get_curve_intersections(
         let straight2 = v2[2] == v2[0] && v2[3] == v2[1] && v2[4] == v2[6] && v2[5] == v2[7];
         let straight = straight1 && straight2;
         let flip = straight1 && !straight2;
+        // 过滤共线情况
+        if v1[0] == v2[6]
+            && v1[1] == v2[7]
+            && v1[2] == v2[4]
+            && v1[3] == v2[5]
+            && v1[4] == v2[2]
+            && v1[5] == v2[3]
+        {
+            return;
+        }
         // 直线相交，控制点和起点/终点一致
         if straight {
             let pt = line_intersection(v1[0], v1[1], v1[6], v1[7], v2[0], v2[1], v2[6], v2[7]);
@@ -623,44 +675,37 @@ fn get_curve_intersections(
                     if count == 2 {
                         return;
                     }
-                    locations.push([-1.0, i1 as f64, x, y, -1.0, i2 as f64, x, y]);
+                    let t1 = calculate_t_value(v1[0], v1[1], v1[6], v1[7], x, y);
+                    let t2 = calculate_t_value(v2[0], v2[1], v2[6], v2[7], x, y);
+                    if t1 > 1.0 - GEOMETRIC_EPSILON || t1 < GEOMETRIC_EPSILON {
+                        return;
+                    }
+                    if t2 > 1.0 - GEOMETRIC_EPSILON || t2 < GEOMETRIC_EPSILON {
+                        return;
+                    }
+                    locations.push([t1, i1 as f64, x, y, t2, i2 as f64, x, y]);
                 }
             }
             return;
         }
         // 直线和曲线相交
         if straight1 || straight2 {
-            let is_v1_line = v1[2] == 0_f64 && v1[3] == 0_f64 && v1[4] == 0_f64 && v1[5] == 0_f64;
-            let curve = if is_v1_line { v2 } else { v1 };
-            let line = if is_v1_line {
+            let curve = if straight1 { v2 } else { v1 };
+            let line = if straight1 {
                 [v1[0], v1[1], v1[6], v1[7]]
             } else {
                 [v2[0], v2[1], v2[6], v2[7]]
             };
             let instersections = line_and_curve_intersection(curve, &line);
             for item in &instersections {
-                if is_v1_line {
-                    locations.push([
-                        item.3.into(),
-                        i1,
-                        item.4,
-                        item.5,
-                        item.0.into(),
-                        i2,
-                        item.1,
-                        item.2,
-                    ]);
+                // 排除端点重合
+                if item.3 > 1.0 - GEOMETRIC_EPSILON || item.3 < GEOMETRIC_EPSILON {
+                    continue;
+                }
+                if straight1 {
+                    locations.push([item.3, i1, item.4, item.5, item.0, i2, item.1, item.2]);
                 } else {
-                    locations.push([
-                        item.0.into(),
-                        i1,
-                        item.1,
-                        item.2,
-                        item.3.into(),
-                        i2,
-                        item.4,
-                        item.5,
-                    ]);
+                    locations.push([item.0, i1, item.1, item.2, item.3, i2, item.4, item.5]);
                 }
             }
             return;
@@ -676,6 +721,10 @@ fn get_curve_intersections(
 
 fn get_self_intersection(v: &[f64; 8]) -> Option<Vec<f64>> {
     let (x0, y0, x1, y1, x2, y2, x3, y3) = (v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
+    let line = line_intersection(x0, y0, x1, y1, x2, y2, x3, y3);
+    if line.is_none() {
+        return None;
+    }
 
     let a1 = x0 * (y3 - y2) + y0 * (x2 - x3) + x3 * y2 - y3 * x2;
     let a2 = x1 * (y0 - y3) + y1 * (x3 - x0) + x0 * y3 - y0 * x3;
@@ -754,7 +803,16 @@ pub fn get_intersections(
                     if !t[0].is_nan() && !t[1].is_nan() {
                         if let Some([x1, y1]) = evaluate(&curve1, t[0], 0) {
                             if let Some([x2, y2]) = evaluate(&curve1, t[1], 0) {
-                                locations.push([t[0], i as f64, x1, y1, t[1], i as f64, x2, y2]);
+                                locations.push([
+                                    t[0],
+                                    i as f64,
+                                    x1,
+                                    y1,
+                                    t[1],
+                                    i as f64,
+                                    x2,
+                                    y2,
+                                ]);
                             }
                         }
                     }
