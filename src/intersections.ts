@@ -324,10 +324,15 @@ function lineAndCurveIntersection(v: number[], line: number[]) {
             s = (intersectionY - ly[0]) / (ly[1] - ly[0]);
         }
 
-        if (t <= CURVETIME_EPSILON || t >= 1 - CURVETIME_EPSILON || s < 0 || s > 1.0) {
+        if (t < 0 || t > 1 || s < 0 || s > 1.0) {
             continue
         } else {
             const lineT = calculateTValue(line[0], line[1], line[2], line[3], intersectionX, intersectionY)
+            if (t <= CURVETIME_EPSILON || t >= 1 - CURVETIME_EPSILON) {
+                if (lineT <= CURVETIME_EPSILON && lineT >= 1 - CURVETIME_EPSILON) {
+                    continue
+                }
+            }
             res.push([t, intersectionX, intersectionY, lineT, intersectionX, intersectionY])
         }
     }

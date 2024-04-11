@@ -452,8 +452,8 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, f
             s = (intersection_y - ly[0]) / (ly[1] - ly[0]);
         }
 
-        if !(t <= CURVETIME_EPSILON || t >= 1.0 - CURVETIME_EPSILON || s < 0.0 || s > 1.0) {
-            let t2 = calculate_t_value(
+        if !(t < 0.0 || t > 1.0 || s < 0.0 || s > 1.0) {
+            let line_t = calculate_t_value(
                 line[0],
                 line[1],
                 line[2],
@@ -461,11 +461,16 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, f
                 intersection_x,
                 intersection_y,
             );
+            if t <= CURVETIME_EPSILON || t >= 1.0 - CURVETIME_EPSILON {
+                if line_t <= CURVETIME_EPSILON && line_t >= 1.0 - CURVETIME_EPSILON {
+                    continue;
+                }
+            }
             res.push((
                 t,
                 intersection_x,
                 intersection_y,
-                t2,
+                line_t,
                 intersection_x,
                 intersection_y,
             ));
@@ -806,16 +811,7 @@ pub fn get_intersections(
                     if !t[0].is_nan() && !t[1].is_nan() {
                         if let Some([x1, y1]) = evaluate(&curve1, t[0], 0) {
                             if let Some([x2, y2]) = evaluate(&curve1, t[1], 0) {
-                                locations.push([
-                                    t[0],
-                                    i as f64,
-                                    x1,
-                                    y1,
-                                    t[1],
-                                    i as f64,
-                                    x2,
-                                    y2,
-                                ]);
+                                locations.push([t[0], i as f64, x1, y1, t[1], i as f64, x2, y2]);
                             }
                         }
                     }
