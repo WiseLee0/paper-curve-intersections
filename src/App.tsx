@@ -14,7 +14,7 @@ const pathToVectorNetwork = (paths: any) => {
   }
   return res
 }
-const svgPath = "M 0 0 L 352 0M 183.5 0 C 183.5 47.05817794799805 183.5 120.5 183.5 120.5"
+const svgPath = "M 127.5 0 L 1326 0 M 883.5 0 L 883.5 406"
 
 export default function App() {
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function App() {
   return (
     <div>
       <canvas id="canvas-id"></canvas>
-      <svg width="300" height="300" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" id="path1">
+      <svg width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg" id="path1">
         <path d={svgPath} stroke="#D9D9D9" />
       </svg>
     </div>

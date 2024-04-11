@@ -682,6 +682,12 @@ fn get_curve_intersections(
                     }
                     let t1 = calculate_t_value(v1[0], v1[1], v1[6], v1[7], x, y);
                     let t2 = calculate_t_value(v2[0], v2[1], v2[6], v2[7], x, y);
+                    if t1 > 1.0 || t1 < 0.0 {
+                        return;
+                    }
+                    if t2 > 1.0 || t2 < 0.0 {
+                        return;
+                    }
                     if t1 > 1.0 - GEOMETRIC_EPSILON || t1 < GEOMETRIC_EPSILON {
                         count += 1;
                     }
@@ -729,8 +735,7 @@ fn get_curve_intersections(
 
 fn get_self_intersection(v: &[f64; 8]) -> Option<Vec<f64>> {
     let (x0, y0, x1, y1, x2, y2, x3, y3) = (v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
-    let line = line_intersection(x0, y0, x1, y1, x2, y2, x3, y3);
-    if line.is_none() {
+    if x0 == x1 && y0 == y1 && x2 == x3 && y2 == y3 {
         return None;
     }
 

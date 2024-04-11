@@ -417,9 +417,7 @@ const bezierIntersections = (v1: number[], v2: number[], c1: number[], c2: numbe
 // 获取自相交点
 const getSelfIntersection = (v: number[]) => {
     const [x0, y0, x1, y1, x2, y2, x3, y3] = v;
-    const hasIntersection = lineIntersection(x0, y0, x1, y1, x2, y2, x3, y3)
-    if (!hasIntersection) return null
-
+    if(x0 === x1 && y0 === y1 && x2 === x3 && y2 === y3) return
     const a1 = x0 * (y3 - y2) + y0 * (x2 - x3) + x3 * y2 - y3 * x2
     const a2 = x1 * (y0 - y3) + y1 * (x3 - x0) + x0 * y3 - y0 * x3
     const a3 = x2 * (y1 - y0) + y2 * (x0 - x1) + x1 * y0 - y1 * x0
@@ -477,6 +475,8 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
                 if (count === 2) return;
                 const t1 = calculateTValue(v1[0], v1[1], v1[6], v1[7], pt[0], pt[1])
                 const t2 = calculateTValue(v2[0], v2[1], v2[6], v2[7], pt[0], pt[1])
+                if (t1 > 1 || t1 < 0) return
+                if (t2 > 1 || t2 < 0) return
                 if (t1 > 1 - GEOMETRIC_EPSILON || t1 < GEOMETRIC_EPSILON) count++
                 if (t2 > 1 - GEOMETRIC_EPSILON || t2 < GEOMETRIC_EPSILON) count++
                 if (count === 4) return;
