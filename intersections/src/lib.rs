@@ -627,6 +627,17 @@ where
         .unwrap()
 }
 
+fn is_point_on_segment(px: f64, py: f64, x1: f64, y1: f64, x2: f64, y2: f64) -> bool {
+    let within_bounds =
+        (x1.min(x2) <= px && px <= x1.max(x2)) && (y1.min(y2) <= py && py <= y1.max(y2));
+    if !within_bounds {
+        return false;
+    }
+
+    let cross_product = (py - y1) * (x2 - x1) - (px - x1) * (y2 - y1);
+    cross_product.abs() < EPSILON
+}
+
 fn get_curve_intersections(
     v1: &[f64; 8],
     v2: &[f64; 8],
@@ -667,7 +678,36 @@ fn get_curve_intersections(
         if straight {
             let pt = line_intersection(v1[0], v1[1], v1[6], v1[7], v2[0], v2[1], v2[6], v2[7]);
             match pt {
-                None => (),
+                None => {
+                    // 共线找出相交的端点
+                    let mut pts: Vec<Vec<f64>> = Vec::new();
+                    let test_point = [
+                        [v1[0], v1[1], v2[0], v2[1], v2[6], v2[7]],
+                        [v1[6], v1[7], v2[0], v2[1], v2[6], v2[7]],
+                        [v2[0], v2[1], v1[0], v1[1], v1[6], v1[7]],
+                        [v2[6], v2[7], v1[0], v1[1], v1[6], v1[7]],
+                    ];
+                    for data in &test_point {
+                        if is_point_on_segment(data[0], data[1], data[2], data[3], data[4], data[5])
+                        {
+                            let t = calculate_t_value(
+                                data[2], data[3], data[4], data[5], data[0], data[1],
+                            );
+                            pts.push(vec![t, data[0], data[1]]);
+                        }
+                        if pts.len() > 2 {
+                            return;
+                        }
+                    }
+                    if pts.len() > 2 {
+                        return;
+                    }
+                    if let (Some(pt1), Some(pt2)) = (pts.get(0), pts.get(1)) {
+                        locations.push([
+                            pt1[0], i1 as f64, pt1[1], pt1[2], pt2[0], i2 as f64, pt2[1], pt2[2],
+                        ]);
+                    }
+                }
                 Some((x, y)) => {
                     let mut count = 0;
                     if (x == v1[0] && y == v1[1]) || (x == v1[6] && y == v1[7]) {

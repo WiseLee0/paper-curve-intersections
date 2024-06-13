@@ -159,6 +159,17 @@ export function evaluate(v: number[], t: number) {
 }
 const isMachineZero = (val: number) => val >= -MACHINE_EPSILON && val <= MACHINE_EPSILON;
 
+function isPointOnSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): boolean {
+    const withinBounds = (
+        Math.min(x1, x2) <= px && px <= Math.max(x1, x2) &&
+        Math.min(y1, y2) <= py && py <= Math.max(y1, y2)
+    );
+    if (!withinBounds) return false
+
+    const crossProduct = (py - y1) * (x2 - x1) - (px - x1) * (y2 - y1);
+    return Math.abs(crossProduct) < EPSILON;
+}
+
 /// 计算直线相交
 function lineIntersection(p1x: number, p1y: number, v1x: number, v1y: number, p2x: number, p2y: number, v2x: number, v2y: number) {
     v1x -= p1x;
@@ -417,7 +428,7 @@ const bezierIntersections = (v1: number[], v2: number[], c1: number[], c2: numbe
 // 获取自相交点
 const getSelfIntersection = (v: number[]) => {
     const [x0, y0, x1, y1, x2, y2, x3, y3] = v;
-    if(x0 === x1 && y0 === y1 && x2 === x3 && y2 === y3) return
+    if (x0 === x1 && y0 === y1 && x2 === x3 && y2 === y3) return
     const a1 = x0 * (y3 - y2) + y0 * (x2 - x3) + x3 * y2 - y3 * x2
     const a2 = x1 * (y0 - y3) + y1 * (x3 - x0) + x0 * y3 - y0 * x3
     const a3 = x2 * (y1 - y0) + y2 * (x0 - x1) + x1 * y0 - y1 * x0
@@ -481,6 +492,26 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
                 if (t2 > 1 - GEOMETRIC_EPSILON || t2 < GEOMETRIC_EPSILON) count++
                 if (count === 4) return;
                 locations.push([t1, pt[0], pt[1], t2, pt[0], pt[1]])
+            } else {
+                // 是否共线情况，判断端点是否在另一条线上
+                let pts: number[][] = []
+                const testPoint = [
+                    [v1[0], v1[1], v2[0], v2[1], v2[6], v2[7]],
+                    [v1[6], v1[7], v2[0], v2[1], v2[6], v2[7]],
+                    [v2[0], v2[1], v1[0], v1[1], v1[6], v1[7]],
+                    [v2[6], v2[7], v1[0], v1[1], v1[6], v1[7]],
+                ] as const
+                for (let i = 0; i < testPoint.length; i++) {
+                    const data = testPoint[i]
+                    if (isPointOnSegment(...data)) {
+                        const t = calculateTValue(data[2], data[3], data[4], data[5], data[0], data[1])
+                        pts.push([t, data[0], data[1]])
+                    }
+                    if (pts.length > 2) return;
+                }
+                if (pts.length > 2) return;
+                const [pt1, pt2] = pts
+                locations.push([pt1[0], pt1[1], pt1[2], pt2[0], pt2[1], pt2[2]])
             }
             return
         }

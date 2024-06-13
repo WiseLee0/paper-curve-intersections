@@ -272,3 +272,72 @@ fn test_bezier_intersections() {
     intersections::get_intersections(&curves1, &curves2, true, &mut locations);
     assert_eq!(locations.len(), 13);
 }
+
+#[test]
+fn test_line_intersections() {
+    let curves1:Vec<[f64; 8]> = vec![
+        [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            109.5,
+            0.0,
+            109.5,
+            0.0
+        ],
+        [
+            109.5,
+            0.0,
+            109.5,
+            0.0,
+            74.89366432468393,
+            53.59184346845434,
+            41.5,
+            49.5
+        ],
+        [
+            41.5,
+            49.5,
+            8.106335675316075,
+            45.40815653154567,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ],
+        [
+            41.5,
+            0.0,
+            41.5,
+            0.0,
+            151.0,
+            0.0,
+            151.0,
+            0.0
+        ],
+        [
+            151.0,
+            0.0,
+            151.0,
+            0.0,
+            116.39366432468393,
+            53.59184346845434,
+            83.0,
+            49.5
+        ],
+        [
+            83.0,
+            49.5,
+            49.606335675316075,
+            45.40815653154567,
+            41.5,
+            0.0,
+            41.5,
+            0.0
+        ]
+    ];
+    let curves2 = curves1.clone();
+    let mut locations = vec![];
+    intersections::get_intersections(&curves1, &curves2, true, &mut locations);
+}
