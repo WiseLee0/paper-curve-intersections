@@ -15,7 +15,7 @@ const pathToVectorNetwork = (paths: any) => {
   return res
 }
 
-const svgPath = "M 0 0 L 109.5 0 C 109.5 0 74.89366432468393 53.59184346845434 41.5 49.5 C 8.106335675316075 45.40815653154567 0 0 0 0 Z M 41.5 0 L 151 0 C 151 0 116.39366432468393 53.59184346845434 83 49.5 C 49.606335675316075 45.40815653154567 41.5 0 41.5 0 Z"
+const svgPath = "M 44.55659972808161 105.84395575676466 C 42.93455116632601 103.22671522565699 41.40157636398038 100.39968005391214 39.95847903189694 97.43873532912347 M 107.5 37.8 C 104.62660435071061 72.49358507624493 10 111.56 10 111.56"
 
 export default function App() {
   useEffect(() => {
@@ -27,6 +27,8 @@ export default function App() {
 
     const words1 = new CompoundPath(svgPath)
     const inrsections1 = pathToVectorNetwork(words1.children)
+    console.log(inrsections1);
+    
     console.time('wasm')
     const wasm_res = rust_get_intersections(new Float64Array(inrsections1.flat()));
     const wasm_chunk = chunkArray(wasm_res, 8)

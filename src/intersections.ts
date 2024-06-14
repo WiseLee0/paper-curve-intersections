@@ -130,6 +130,7 @@ function signedDistance(px: number, py: number, vx: number, vy: number, x: numbe
 }
 
 const isZero = (val: number) => val >= -EPSILON && val <= EPSILON;
+const isCurveZero = (val: number) => val >= -CURVETIME_EPSILON && val <= CURVETIME_EPSILON;
 /// 计算贝塞尔曲线上的点、切线、法线和曲率
 /// type = 0时，计算曲线上参数t所对应的点
 /// type = 1时，计算曲线上的切线
@@ -390,7 +391,7 @@ const bezierIntersections = (v1: number[], v2: number[], c1: number[], c2: numbe
         const cc1 = flip ? c2 : c1
         const cc2 = flip ? c1 : c2
 
-        if (t1 > 1 - CURVETIME_EPSILON || t1 < CURVETIME_EPSILON || t2 > 1 - CURVETIME_EPSILON || t2 < CURVETIME_EPSILON) {
+        if ((isCurveZero(t1) && isCurveZero(t2)) || (isCurveZero(1 - t1) && isCurveZero(1 - t2)) || (isCurveZero(1 - t1) && isCurveZero(t2)) || (isCurveZero(t1) && isCurveZero(1 - t2))) {
             return calls
         }
         let intersections: any
@@ -494,7 +495,6 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
                 locations.push([t1, pt[0], pt[1], t2, pt[0], pt[1]])
             } else {
                 // 是否共线情况，判断端点是否在另一条线上
-                let pts: number[][] = []
                 const testPoint = [
                     [v1[0], v1[1], v2[0], v2[1], v2[6], v2[7]],
                     [v1[6], v1[7], v2[0], v2[1], v2[6], v2[7]],
@@ -504,14 +504,15 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
                 for (let i = 0; i < testPoint.length; i++) {
                     const data = testPoint[i]
                     if (isPointOnSegment(...data)) {
-                        const t = calculateTValue(data[2], data[3], data[4], data[5], data[0], data[1])
-                        pts.push([t, data[0], data[1]])
+                        const t1 = calculateTValue(v1[0], v1[1], v1[6], v1[7], data[0], data[1])
+                        const t2 = calculateTValue(v2[0], v2[1], v2[6], v2[7], data[0], data[1])
+                        if ((t1 === 0 && t2 === 1) || (t1 === 1 && t2 === 0) || (t1 === 0 && t2 === 0) || (t1 === 1 && t2 === 1)) {
+                            continue
+                        }
+                        locations.push([t1, data[0], data[1], t2, data[0], data[1]])
                     }
-                    if (pts.length > 2) return;
                 }
-                if (pts.length > 2) return;
-                const [pt1, pt2] = pts
-                locations.push([pt1[0], pt1[1], pt1[2], pt2[0], pt2[1], pt2[2]])
+
             }
             return
         }
@@ -523,7 +524,7 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
             for (let i = 0; i < instersections.length; i++) {
                 const item = instersections[i];
                 // 排除端点重合
-                if (item[3] > 1 - GEOMETRIC_EPSILON || item[3] < GEOMETRIC_EPSILON) continue
+                if ((item[3] > 1 - GEOMETRIC_EPSILON || item[3] < GEOMETRIC_EPSILON) && (item[0] > 1 - GEOMETRIC_EPSILON || item[0] < GEOMETRIC_EPSILON)) continue
                 if (straight1) locations.push([item[3], item[4], item[5], item[0], item[1], item[2]])
                 else locations.push(item)
             }

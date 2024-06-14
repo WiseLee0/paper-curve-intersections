@@ -184,6 +184,9 @@ fn signed_distance(
 fn is_zero(val: f64) -> bool {
     val >= -EPSILON && val <= EPSILON
 }
+fn is_curve_zero(val: f64) -> bool {
+    val >= -CURVETIME_EPSILON && val <= CURVETIME_EPSILON
+}
 /// 计算贝塞尔曲线上的点、切线、法线和曲率
 ///
 /// type = 0时，计算曲线上参数t所对应的点
@@ -540,10 +543,10 @@ fn bezier_intersections(
         let u = (u_min + u_max) / 2.0;
         let (t1, t2) = if flip { (u, t) } else { (t, u) };
         let (cc1, cc2) = if flip { (c2, c1) } else { (c1, c2) };
-        if t1 < CURVETIME_EPSILON
-            || t1 > 1.0 - CURVETIME_EPSILON
-            || t2 < CURVETIME_EPSILON
-            || t2 > 1.0 - CURVETIME_EPSILON
+        if (is_curve_zero(t1) && is_curve_zero(t2))
+            || (is_curve_zero(1.0 - t1) && is_curve_zero(1.0 - t2))
+            || (is_curve_zero(t1) && is_curve_zero(1.0 - t2))
+            || (is_curve_zero(1.0 - t1) && is_curve_zero(t2))
         {
             return calls;
         }
@@ -680,7 +683,6 @@ fn get_curve_intersections(
             match pt {
                 None => {
                     // 共线找出相交的端点
-                    let mut pts: Vec<Vec<f64>> = Vec::new();
                     let test_point = [
                         [v1[0], v1[1], v2[0], v2[1], v2[6], v2[7]],
                         [v1[6], v1[7], v2[0], v2[1], v2[6], v2[7]],
@@ -690,22 +692,19 @@ fn get_curve_intersections(
                     for data in &test_point {
                         if is_point_on_segment(data[0], data[1], data[2], data[3], data[4], data[5])
                         {
-                            let t = calculate_t_value(
-                                data[2], data[3], data[4], data[5], data[0], data[1],
-                            );
-                            pts.push(vec![t, data[0], data[1]]);
+                            let t1 =
+                                calculate_t_value(v1[0], v1[1], v1[6], v1[7], data[0], data[1]);
+                            let t2 =
+                                calculate_t_value(v2[0], v2[1], v2[6], v2[7], data[0], data[1]);
+                            if (t1 == 0.0 && t2 == 1.0)
+                                || (t1 == 1.0 && t2 == 0.0)
+                                || (t1 == 0.0 && t2 == 0.0)
+                                || (t1 == 1.0 && t2 == 1.0)
+                            {
+                                continue;
+                            }
+                            locations.push([t1, i1, data[0], data[1], t2, i2, data[0], data[1]]);
                         }
-                        if pts.len() > 2 {
-                            return;
-                        }
-                    }
-                    if pts.len() > 2 {
-                        return;
-                    }
-                    if let (Some(pt1), Some(pt2)) = (pts.get(0), pts.get(1)) {
-                        locations.push([
-                            pt1[0], i1 as f64, pt1[1], pt1[2], pt2[0], i2 as f64, pt2[1], pt2[2],
-                        ]);
                     }
                 }
                 Some((x, y)) => {
@@ -753,7 +752,9 @@ fn get_curve_intersections(
             let instersections = line_and_curve_intersection(curve, &line);
             for item in &instersections {
                 // 排除端点重合
-                if item.3 > 1.0 - GEOMETRIC_EPSILON || item.3 < GEOMETRIC_EPSILON {
+                if (item.3 > 1.0 - GEOMETRIC_EPSILON || item.3 < GEOMETRIC_EPSILON)
+                    && (item.0 > 1.0 - GEOMETRIC_EPSILON || item.0 < GEOMETRIC_EPSILON)
+                {
                     continue;
                 }
                 if straight1 {
