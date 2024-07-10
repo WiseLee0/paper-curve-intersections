@@ -520,13 +520,37 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
         if (straight1 || straight2) {
             const curve = straight1 ? v2 : v1
             const line = straight1 ? [v1[0], v1[1], v1[6], v1[7]] : [v2[0], v2[1], v2[6], v2[7]]
+            // 判断曲线端点是否在直线上
+            const testPoint = [
+                [curve[0], curve[1], line[0], line[1], line[2], line[3]],
+                [curve[6], curve[7], line[0], line[1], line[2], line[3]],
+            ] as const
+            let count = 0
+            for (let i = 0; i < testPoint.length; i++) {
+                const data = testPoint[i]
+                if (isPointOnSegment(...data)) {
+                    const t = calculateTValue(line[0], line[1], line[2], line[3], data[0], data[1])
+                    if (t === 0 || t === 1) continue
+                    count++
+                    locations.push([t, data[0], data[1], i, data[0], data[1]])
+                }
+            }
+            // 如果都存在的话，不需要进行下面计算
+            if (count === 2) return;
             const instersections = lineAndCurveIntersection(curve, line)
             for (let i = 0; i < instersections.length; i++) {
                 const item = instersections[i];
                 // 排除端点重合
                 if ((item[3] > 1 - GEOMETRIC_EPSILON || item[3] < GEOMETRIC_EPSILON) && (item[0] > 1 - GEOMETRIC_EPSILON || item[0] < GEOMETRIC_EPSILON)) continue
-                if (straight1) locations.push([item[3], item[4], item[5], item[0], item[1], item[2]])
-                else locations.push(item)
+                if (straight1) {
+                    // 排除曲线端点在直线上case
+                    if (item[0] === 1 || item[0] === 0) return;
+                    locations.push([item[3], item[4], item[5], item[0], item[1], item[2]])
+                } else {
+                    // 排除曲线端点在直线上case
+                    if (item[3] === 1 || item[3] === 0) return;
+                    locations.push(item)
+                }
             }
             return
         }

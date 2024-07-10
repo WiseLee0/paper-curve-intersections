@@ -749,6 +749,26 @@ fn get_curve_intersections(
             } else {
                 [v2[0], v2[1], v2[6], v2[7]]
             };
+            // 判断曲线端点是否在直线上
+            let test_point = [
+                [curve[0], curve[1], line[0], line[1], line[2], line[3]],
+                [curve[6], curve[7], line[0], line[1], line[2], line[3]],
+            ];
+            let mut count = 0;
+            for (i, data) in test_point.iter().enumerate() {
+                if is_point_on_segment(data[0], data[1], data[2], data[3], data[4], data[5]) {
+                    let t = calculate_t_value(line[0], line[1], line[2], line[3], data[0], data[1]);
+                    if t == 0.0 || t == 1.0 {
+                        continue;
+                    }
+                    count += 1;
+                    locations.push([t, i1, data[0], data[1], i as f64, i2, data[0], data[1]]);
+                }
+            }
+            // 如果都存在的话，不需要进行下面计算
+            if count == 2 {
+                return;
+            }
             let instersections = line_and_curve_intersection(curve, &line);
             for item in &instersections {
                 // 排除端点重合
@@ -758,8 +778,16 @@ fn get_curve_intersections(
                     continue;
                 }
                 if straight1 {
+                    // 排除曲线端点在直线上case
+                    if item.0 == 1.0 || item.1 == 0.0 {
+                        return;
+                    }
                     locations.push([item.3, i1, item.4, item.5, item.0, i2, item.1, item.2]);
                 } else {
+                    // 排除曲线端点在直线上case
+                    if item.3 == 1.0 || item.3 == 0.0 {
+                        return;
+                    }
                     locations.push([item.0, i1, item.1, item.2, item.3, i2, item.4, item.5]);
                 }
             }

@@ -15,7 +15,7 @@ const pathToVectorNetwork = (paths: any) => {
   return res
 }
 
-const svgPath = "M 44.55659972808161 105.84395575676466 C 42.93455116632601 103.22671522565699 41.40157636398038 100.39968005391214 39.95847903189694 97.43873532912347 M 107.5 37.8 C 104.62660435071061 72.49358507624493 10 111.56 10 111.56"
+const svgPath = "M 398.7690365021536 797.5426635742188 L 398.7690365021536 0 M 398.7690365021536 398.7690365021536 C 398.7690365021536  273.23506363314584 524.3030093711614 171.47155790420925 398.7690365021536 171.47155790420925"
 
 export default function App() {
   useEffect(() => {
@@ -41,7 +41,9 @@ export default function App() {
     console.log(wasm_chunk);
 
     const myIntersections: any = []
+    console.time('js')
     getIntersections(inrsections1, undefined, myIntersections)
+    console.timeEnd('js')
     console.log(myIntersections);
 
     const paperIntersections = []
@@ -77,7 +79,7 @@ export default function App() {
   return (
     <div>
       <canvas id="canvas-id"></canvas>
-      <svg width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg" id="path1">
+      <svg width="300" height="300" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg" id="path1">
         <path d={svgPath} stroke="#D9D9D9" />
       </svg>
     </div>
