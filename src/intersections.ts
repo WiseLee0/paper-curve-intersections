@@ -326,6 +326,7 @@ function lineAndCurveIntersection(v: number[], line: number[]) {
     const res = []
     for (let i = 0; i < r.length; i++) {
         const t = r[i];
+        if (t < 0 || t > 1 || isNaN(t)) continue
         const intersectionX = bx[0] * t ** 3 + bx[1] * t ** 2 + bx[2] * t + bx[3];
         const intersectionY = by[0] * t ** 3 + by[1] * t ** 2 + by[2] * t + by[3];
 
@@ -335,18 +336,15 @@ function lineAndCurveIntersection(v: number[], line: number[]) {
         } else {
             s = (intersectionY - ly[0]) / (ly[1] - ly[0]);
         }
+        if (s < 0 || s > 1.0 || isNaN(s)) continue
 
-        if (t < 0 || t > 1 || s < 0 || s > 1.0) {
-            continue
-        } else {
-            const lineT = calculateTValue(line[0], line[1], line[2], line[3], intersectionX, intersectionY)
-            if (t <= CURVETIME_EPSILON || t >= 1 - CURVETIME_EPSILON) {
-                if (lineT <= CURVETIME_EPSILON && lineT >= 1 - CURVETIME_EPSILON) {
-                    continue
-                }
+        const lineT = calculateTValue(line[0], line[1], line[2], line[3], intersectionX, intersectionY)
+        if (t <= CURVETIME_EPSILON || t >= 1 - CURVETIME_EPSILON) {
+            if (lineT <= CURVETIME_EPSILON && lineT >= 1 - CURVETIME_EPSILON) {
+                continue
             }
-            res.push([t, intersectionX, intersectionY, lineT, intersectionX, intersectionY])
         }
+        res.push([t, intersectionX, intersectionY, lineT, intersectionX, intersectionY])
     }
     return res
 }
@@ -532,7 +530,11 @@ const getCurveIntersections = (v1: number[], v2: number[], locations: number[][]
                     const t = calculateTValue(line[0], line[1], line[2], line[3], data[0], data[1])
                     if (t === 0 || t === 1) continue
                     count++
-                    locations.push([t, data[0], data[1], i, data[0], data[1]])
+                    if (straight1) {
+                        locations.push([t, data[0], data[1], i, data[0], data[1]])
+                    } else {
+                        locations.push([i, data[0], data[1], t, data[0], data[1]])
+                    }
                 }
             }
             // 如果都存在的话，不需要进行下面计算

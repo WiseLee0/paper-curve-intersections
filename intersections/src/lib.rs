@@ -445,6 +445,9 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, f
     let r = cubic_roots(&p);
     let mut res = Vec::new();
     for &t in &r {
+        if t < 0.0 || t > 1.0 || t.is_nan() {
+            continue;
+        }
         let intersection_x = bx[0] * t.powi(3) + bx[1] * t.powi(2) + bx[2] * t + bx[3];
         let intersection_y = by[0] * t.powi(3) + by[1] * t.powi(2) + by[2] * t + by[3];
 
@@ -455,29 +458,31 @@ fn line_and_curve_intersection(v: &[f64], line: &[f64]) -> Vec<(f64, f64, f64, f
             s = (intersection_y - ly[0]) / (ly[1] - ly[0]);
         }
 
-        if !(t < 0.0 || t > 1.0 || s < 0.0 || s > 1.0) {
-            let line_t = calculate_t_value(
-                line[0],
-                line[1],
-                line[2],
-                line[3],
-                intersection_x,
-                intersection_y,
-            );
-            if t <= CURVETIME_EPSILON || t >= 1.0 - CURVETIME_EPSILON {
-                if line_t <= CURVETIME_EPSILON && line_t >= 1.0 - CURVETIME_EPSILON {
-                    continue;
-                }
-            }
-            res.push((
-                t,
-                intersection_x,
-                intersection_y,
-                line_t,
-                intersection_x,
-                intersection_y,
-            ));
+        if s < 0.0 || s > 1.0 || s.is_nan() {
+            continue;
         }
+
+        let line_t = calculate_t_value(
+            line[0],
+            line[1],
+            line[2],
+            line[3],
+            intersection_x,
+            intersection_y,
+        );
+        if t <= CURVETIME_EPSILON || t >= 1.0 - CURVETIME_EPSILON {
+            if line_t <= CURVETIME_EPSILON && line_t >= 1.0 - CURVETIME_EPSILON {
+                continue;
+            }
+        }
+        res.push((
+            t,
+            intersection_x,
+            intersection_y,
+            line_t,
+            intersection_x,
+            intersection_y,
+        ));
     }
     res
 }
@@ -762,7 +767,11 @@ fn get_curve_intersections(
                         continue;
                     }
                     count += 1;
-                    locations.push([t, i1, data[0], data[1], i as f64, i2, data[0], data[1]]);
+                    if straight1 {
+                        locations.push([t, i1, data[0], data[1], i as f64, i2, data[0], data[1]]);
+                    } else {
+                        locations.push([i as f64, i1, data[0], data[1], t, i2, data[0], data[1]]);
+                    }
                 }
             }
             // 如果都存在的话，不需要进行下面计算
