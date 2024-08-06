@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { getIntersections } from './intersections'
 import paper, { CompoundPath } from 'paper'
-import { rust_get_intersections } from '../intersections/pkg'
+import initwasm, { rust_get_intersections } from '../intersections/pkg'
 const pathToVectorNetwork = (paths: any) => {
   const res = []
   for (let i = 0; i < paths.length; i++) {
@@ -15,7 +15,7 @@ const pathToVectorNetwork = (paths: any) => {
   return res
 }
 
-const svgPath = "M 334.56 167.28 C 334.56 259.6658046264804 259.6658046264804 334.56 167.28 334.56 C 74.89419537351962 334.56 0 259.6658046264804 0 167.28 C 0 74.89419537351962 74.89419537351962 0 167.28 0 C 259.6658046264804 0 334.56 74.89419537351962 334.56 167.28 Z,M 334.56 167.28 L 167.28 334.56 M 334.56 167.28 L 0 167.28 M 334.56 167.28 L 167.28 0 M 334.56 167.28 C 334.56 74.89419537351962 74.89419537351962 334.56 167.28 334.56 M 334.56 167.28 C 334.56 74.89419537351962 0 74.89419537351962 0 167.28 M 334.56 167.28 C 334.56 259.6658046264804 74.89419537351962 0 167.28 0 M 167.28 334.56 L 0 167.28 M 167.28 334.56 L 167.28 0 M 167.28 334.56 C 259.6658046264804 334.56 0 74.89419537351962 0 167.28 M 167.28 334.56 C 74.89419537351962 334.56 259.6658046264804 0 167.28 0 M 0 167.28 L 167.28 0 M 0 167.28 C 0 259.6658046264804 259.6658046264804 0 167.28 0"
+const svgPath = "M4 75L58 1M46 75C4.33333 61.3333 -39 -34 68 40"
 
 export default function App() {
   useEffect(() => {
@@ -25,10 +25,12 @@ export default function App() {
   const main = async () => {
     paper.setup('canvas-id');
 
+    await initwasm()
+
     const words1 = new CompoundPath(svgPath)
     const inrsections1 = pathToVectorNetwork(words1.children)
     console.log(inrsections1);
-    
+
     console.time('wasm')
     const wasm_res = rust_get_intersections(new Float64Array(inrsections1.flat()));
     const wasm_chunk = chunkArray(wasm_res, 8)
